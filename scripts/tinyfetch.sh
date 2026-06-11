@@ -495,30 +495,20 @@ if [ "$NO_ASCII" -eq 0 ] && [ "$HAS_EXT" -eq 0 ]; then
   fi
 fi
 
-# Limit maximum pane widths to avoid layout explosions
-max_right_w=45
-max_ext_w=50
-[ $right_w -gt $max_right_w ] && right_w=$max_right_w
-if [ "$HAS_EXT" -eq 1 ]; then
-  [ $ext_w -gt $max_ext_w ] && ext_w=$max_ext_w
-fi
-
-# Proportional scaling down to fit remaining space
+# Proportional scaling to use the entire terminal width
 total_borders=9
 [ "$NO_ASCII" -eq 1 ] && total_borders=5
 [ "$NO_FRAME" -eq 1 ] && total_borders=6 # spaces instead of borders
 
 available=$((term_w - min_logo_w - total_borders))
-if [ $((right_w + ext_w)) -gt $available ]; then
-  if [ "$HAS_EXT" -eq 1 ]; then
-    right_w=$((available * 45 / 100))
-    ext_w=$((available - right_w))
-    [ $right_w -lt 20 ] && right_w=20
-    [ $ext_w -lt 20 ] && ext_w=20
-  else
-    right_w=$available
-    [ $right_w -lt 20 ] && right_w=20
-  fi
+if [ "$HAS_EXT" -eq 1 ]; then
+  right_w=$((available * 45 / 100))
+  ext_w=$((available - right_w))
+  [ $right_w -lt 20 ] && right_w=20
+  [ $ext_w -lt 20 ] && ext_w=20
+else
+  right_w=$available
+  [ $right_w -lt 20 ] && right_w=20
 fi
 
 strip_ansi() {

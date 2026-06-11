@@ -745,17 +745,7 @@ func main() {
 		}
 	}
 
-	// Limit maximum pane widths to avoid layout explosions
-	maxRightW := 45
-	maxExtW := 50
-	if rightW > maxRightW {
-		rightW = maxRightW
-	}
-	if hasExt && extW > maxExtW {
-		extW = maxExtW
-	}
-
-	// Proportional scaling down to fit remaining space
+	// Proportional scaling to use the entire terminal width
 	totalBorders := 9
 	if noASCII {
 		totalBorders = 5
@@ -765,21 +755,19 @@ func main() {
 	}
 
 	available := termW - minLogoW - totalBorders
-	if (rightW + extW) > available {
-		if hasExt {
-			rightW = available * 45 / 100
-			extW = available - rightW
-			if rightW < 20 {
-				rightW = 20
-			}
-			if extW < 20 {
-				extW = 20
-			}
-		} else {
-			rightW = available
-			if rightW < 20 {
-				rightW = 20
-			}
+	if hasExt {
+		rightW = available * 45 / 100
+		extW = available - rightW
+		if rightW < 20 {
+			rightW = 20
+		}
+		if extW < 20 {
+			extW = 20
+		}
+	} else {
+		rightW = available
+		if rightW < 20 {
+			rightW = 20
 		}
 	}
 
