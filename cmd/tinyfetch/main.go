@@ -30,9 +30,48 @@ func getTerminalWidth() int {
 	return 80
 }
 
+func runeWidth(r rune) int {
+	// Zero-width space, joiners, control chars, variation selectors
+	if r == '\u200d' || r == '\u200c' || (r >= '\ufe00' && r <= '\ufe0f') {
+		return 0
+	}
+	// Combining diacritical marks
+	if r >= 0x0300 && r <= 0x036F {
+		return 0
+	}
+	// Wide ranges (2 columns)
+	// Emojis / Pictographs in SMP (Plane 1): U+1F000 to U+1FAFF
+	if r >= 0x1F000 && r <= 0x1FAFF {
+		return 2
+	}
+	// Miscellaneous Symbols and Pictographs, Emoticons, Ornamental Dingbats, etc. in BMP
+	if r >= 0x2600 && r <= 0x27BF {
+		return 2
+	}
+	// CJK ranges
+	if (r >= 0x2E80 && r <= 0x2FDF) || // CJK Radicals
+		(r >= 0x3000 && r <= 0x9FFF) || // Hiragana, Katakana, CJK Unified Ideographs
+		(r >= 0xF900 && r <= 0xFAFF) || // CJK Compatibility
+		(r >= 0xFF01 && r <= 0xFF60) || // Fullwidth Forms
+		(r >= 0xFFE0 && r <= 0xFFE6) {
+		return 2
+	}
+	// Default
+	return 1
+}
+
+func visualLength(s string) int {
+	raw := stripANSI(s)
+	length := 0
+	for _, r := range raw {
+		length += runeWidth(r)
+	}
+	return length
+}
+
 func truncateANSI(s string, limit int) string {
 	raw := stripANSI(s)
-	if utf8.RuneCountInString(raw) <= limit {
+	if visualLength(raw) <= limit {
 		return s
 	}
 
@@ -61,9 +100,14 @@ func truncateANSI(s string, limit int) string {
 
 		if visualLen < targetLen {
 			r, size := utf8.DecodeRuneInString(s[i:])
-			builder.WriteRune(r)
+			w := runeWidth(r)
+			if visualLen+w <= targetLen {
+				builder.WriteRune(r)
+				visualLen += w
+			} else {
+				visualLen = targetLen
+			}
 			i += size - 1
-			visualLen++
 		}
 	}
 	builder.WriteString("…")
@@ -633,8 +677,7 @@ func main() {
 	leftW := 0
 	if !noASCII {
 		for _, line := range logo {
-			raw := stripANSI(line)
-			rawLen := utf8.RuneCountInString(raw)
+			rawLen := visualLength(line)
 			if rawLen > leftW {
 				leftW = rawLen
 			}
@@ -647,8 +690,7 @@ func main() {
 	// Calculate maximum info raw length
 	rightW := 0
 	for _, line := range info {
-		raw := stripANSI(line)
-		rawLen := utf8.RuneCountInString(raw)
+		rawLen := visualLength(line)
 		if rawLen > rightW {
 			rightW = rawLen
 		}
@@ -658,8 +700,7 @@ func main() {
 	extW := 0
 	if hasExt {
 		for _, line := range extInfo {
-			raw := stripANSI(line)
-			rawLen := utf8.RuneCountInString(raw)
+			rawLen := visualLength(line)
 			if rawLen > extW {
 				extW = rawLen
 			}
@@ -757,7 +798,7 @@ func main() {
 			if !noASCII && i < len(logo) {
 				logoPrint = logo[i]
 			}
-			lRaw := utf8.RuneCountInString(stripANSI(logoPrint))
+			lRaw := visualLength(logoPrint)
 			lPadCount := leftW - lRaw
 			lPadding := ""
 			if lPadCount > 0 {
@@ -769,7 +810,7 @@ func main() {
 				infoPrint = info[i]
 			}
 			infoPrint = truncateANSI(infoPrint, rightW)
-			rRaw := utf8.RuneCountInString(stripANSI(infoPrint))
+			rRaw := visualLength(infoPrint)
 			rPadCount := rightW - rRaw
 			rPadding := ""
 			if rPadCount > 0 {
@@ -810,7 +851,7 @@ func main() {
 						rLine = info[i]
 					}
 					rLine = truncateANSI(rLine, rightW)
-					rRaw := utf8.RuneCountInString(stripANSI(rLine))
+					rRaw := visualLength(rLine)
 					rPadCount := rightW - rRaw
 					rPadding := ""
 					if rPadCount > 0 {
@@ -829,7 +870,7 @@ func main() {
 					if i < len(logo) {
 						logoPrint = logo[i]
 					}
-					lRaw := utf8.RuneCountInString(stripANSI(logoPrint))
+					lRaw := visualLength(logoPrint)
 					lPadCount := leftW - lRaw
 					lPadding := ""
 					if lPadCount > 0 {
@@ -841,7 +882,7 @@ func main() {
 						infoPrint = info[i]
 					}
 					infoPrint = truncateANSI(infoPrint, rightW)
-					rRaw := utf8.RuneCountInString(stripANSI(infoPrint))
+					rRaw := visualLength(infoPrint)
 					rPadCount := rightW - rRaw
 					rPadding := ""
 					if rPadCount > 0 {
@@ -867,7 +908,7 @@ func main() {
 						rLine = info[i]
 					}
 					rLine = truncateANSI(rLine, rightW)
-					rRaw := utf8.RuneCountInString(stripANSI(rLine))
+					rRaw := visualLength(rLine)
 					rPadCount := rightW - rRaw
 					rPadding := ""
 					if rPadCount > 0 {
@@ -883,7 +924,7 @@ func main() {
 					} else {
 						eLine = truncateANSI(eLine, extW)
 					}
-					eRaw := utf8.RuneCountInString(stripANSI(eLine))
+					eRaw := visualLength(eLine)
 					ePadCount := extW - eRaw
 					ePadding := ""
 					if ePadCount > 0 {
@@ -906,7 +947,7 @@ func main() {
 					if i < len(logo) {
 						logoPrint = logo[i]
 					}
-					lRaw := utf8.RuneCountInString(stripANSI(logoPrint))
+					lRaw := visualLength(logoPrint)
 					lPadCount := leftW - lRaw
 					lPadding := ""
 					if lPadCount > 0 {
@@ -918,7 +959,7 @@ func main() {
 						infoPrint = info[i]
 					}
 					infoPrint = truncateANSI(infoPrint, rightW)
-					rRaw := utf8.RuneCountInString(stripANSI(infoPrint))
+					rRaw := visualLength(infoPrint)
 					rPadCount := rightW - rRaw
 					rPadding := ""
 					if rPadCount > 0 {
@@ -934,7 +975,7 @@ func main() {
 					} else {
 						ePrint = truncateANSI(ePrint, extW)
 					}
-					eRaw := utf8.RuneCountInString(stripANSI(ePrint))
+					eRaw := visualLength(ePrint)
 					ePadCount := extW - eRaw
 					ePadding := ""
 					if ePadCount > 0 {

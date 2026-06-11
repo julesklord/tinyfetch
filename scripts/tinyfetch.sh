@@ -414,6 +414,15 @@ if [ "$MINIMAL" -eq 0 ] && [ -d "./plugins/extended" ]; then
   fi
 fi
 
+visual_len() {
+  local str="$1"
+  local clean
+  clean=$(printf "%s" "$str" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g')
+  clean=$(printf "%s" "$clean" | sed "s/$(printf '\ufe0f')//g" | sed "s/$(printf '\u200d')//g")
+  clean=$(printf "%s" "$clean" | sed "s/[☀️⚡⛅☁🌧🌦⛈🌩🌨❄🌫💨🌬🌪☔🌀🌁🌃🌄🌅🌇🌙🌕🌑]/xx/g")
+  echo "${#clean}"
+}
+
 # Get terminal width
 term_w=$(tput cols 2>/dev/null || echo 80)
 
@@ -430,9 +439,9 @@ fi
 left_w=0
 if [ "$NO_ASCII" -eq 0 ]; then
   for line in "${logo[@]}"; do
-    raw=$(printf "%s" "$line" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g')
-    if [ ${#raw} -gt $left_w ]; then
-      left_w=${#raw}
+    vlen=$(visual_len "$line")
+    if [ "$vlen" -gt $left_w ]; then
+      left_w=$vlen
     fi
   done
   [ $left_w -lt 16 ] && left_w=16
@@ -441,9 +450,9 @@ fi
 # Calculate maximum info raw length
 right_w=0
 for line in "${info[@]}"; do
-  raw=$(printf "%s" "$line" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g')
-  if [ ${#raw} -gt $right_w ]; then
-    right_w=${#raw}
+  vlen=$(visual_len "$line")
+  if [ "$vlen" -gt $right_w ]; then
+    right_w=$vlen
   fi
 done
 
@@ -451,9 +460,9 @@ done
 ext_w=0
 if [ "$HAS_EXT" -eq 1 ]; then
   for line in "${ext_info[@]}"; do
-    raw=$(printf "%s" "$line" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g')
-    if [ ${#raw} -gt $ext_w ]; then
-      ext_w=${#raw}
+    vlen=$(visual_len "$line")
+    if [ "$vlen" -gt $ext_w ]; then
+      ext_w=$vlen
     fi
   done
   [ $ext_w -lt 24 ] && ext_w=24
@@ -519,11 +528,13 @@ strip_ansi() {
 truncate_ansi() {
   local str="$1"
   local limit="$2"
-  local stripped
-  stripped=$(printf "%s" "$str" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g')
-  if [ ${#stripped} -le "$limit" ]; then
+  local vlen
+  vlen=$(visual_len "$str")
+  if [ "$vlen" -le "$limit" ]; then
     echo "$str"
   else
+    local stripped
+    stripped=$(printf "%s" "$str" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g')
     echo -e "${stripped:0:$((limit - 1))}…${RESTORE}"
   fi
 }
@@ -549,15 +560,15 @@ if [ "$NO_FRAME" -eq 1 ]; then
     e_line="${ext_info[i]:-}"
 
     # Setup Left Logo
-    l_raw=$(strip_ansi "$l_line")
-    l_pad=$((left_w - ${#l_raw}))
+    l_vlen=$(visual_len "$l_line")
+    l_pad=$((left_w - l_vlen))
     l_padding=""
     [ $l_pad -gt 0 ] && l_padding=$(printf "%${l_pad}s" "")
 
     # Setup Middle Info
     r_line=$(truncate_ansi "$r_line" "$right_w")
-    r_raw=$(strip_ansi "$r_line")
-    r_pad=$((right_w - ${#r_raw}))
+    r_vlen=$(visual_len "$r_line")
+    r_pad=$((right_w - r_vlen))
     r_padding=""
     [ $r_pad -gt 0 ] && r_padding=$(printf "%${r_pad}s" "")
 
@@ -590,8 +601,8 @@ else
       for ((i=0; i<max_lines; i++)); do
         r_line="${info[i]:-}"
         r_line=$(truncate_ansi "$r_line" "$right_w")
-        r_raw=$(strip_ansi "$r_line")
-        r_pad=$((right_w - ${#r_raw}))
+        r_vlen=$(visual_len "$r_line")
+        r_pad=$((right_w - r_vlen))
         r_padding=""
         [ $r_pad -gt 0 ] && r_padding=$(printf "%${r_pad}s" "")
         echo -e "${BORDER_COLOR}│${RESTORE} ${r_line}${r_padding} ${BORDER_COLOR}│"
@@ -605,14 +616,14 @@ else
       for ((i=0; i<max_lines; i++)); do
         l_line="${logo[i]:-}"
         r_line="${info[i]:-}"
-        l_raw=$(strip_ansi "$l_line")
-        l_pad=$((left_w - ${#l_raw}))
+        l_vlen=$(visual_len "$l_line")
+        l_pad=$((left_w - l_vlen))
         l_padding=""
         [ $l_pad -gt 0 ] && l_padding=$(printf "%${l_pad}s" "")
         
         r_line=$(truncate_ansi "$r_line" "$right_w")
-        r_raw=$(strip_ansi "$r_line")
-        r_pad=$((right_w - ${#r_raw}))
+        r_vlen=$(visual_len "$r_line")
+        r_pad=$((right_w - r_vlen))
         r_padding=""
         [ $r_pad -gt 0 ] && r_padding=$(printf "%${r_pad}s" "")
         echo -e "${BORDER_COLOR}│${RESTORE} ${l_line}${l_padding} ${BORDER_COLOR}│${RESTORE} ${r_line}${r_padding} ${BORDER_COLOR}│"
@@ -630,8 +641,8 @@ else
         e_line="${ext_info[i]:-}"
         
         r_line=$(truncate_ansi "$r_line" "$right_w")
-        r_raw=$(strip_ansi "$r_line")
-        r_pad=$((right_w - ${#r_raw}))
+        r_vlen=$(visual_len "$r_line")
+        r_pad=$((right_w - r_vlen))
         r_padding=""
         [ $r_pad -gt 0 ] && r_padding=$(printf "%${r_pad}s" "")
         
@@ -640,8 +651,8 @@ else
         else
           e_line=$(truncate_ansi "$e_line" "$ext_w")
         fi
-        e_raw=$(strip_ansi "$e_line")
-        e_pad=$((ext_w - ${#e_raw}))
+        e_vlen=$(visual_len "$e_line")
+        e_pad=$((ext_w - e_vlen))
         e_padding=""
         [ $e_pad -gt 0 ] && e_padding=$(printf "%${e_pad}s" "")
         echo -e "${BORDER_COLOR}│${RESTORE} ${r_line}${r_padding} ${BORDER_COLOR}│${RESTORE} ${e_line}${e_padding} ${BORDER_COLOR}│"
@@ -656,14 +667,14 @@ else
         l_line="${logo[i]:-}"
         r_line="${info[i]:-}"
         e_line="${ext_info[i]:-}"
-        l_raw=$(strip_ansi "$l_line")
-        l_pad=$((left_w - ${#l_raw}))
+        l_vlen=$(visual_len "$l_line")
+        l_pad=$((left_w - l_vlen))
         l_padding=""
         [ $l_pad -gt 0 ] && l_padding=$(printf "%${l_pad}s" "")
         
         r_line=$(truncate_ansi "$r_line" "$right_w")
-        r_raw=$(strip_ansi "$r_line")
-        r_pad=$((right_w - ${#r_raw}))
+        r_vlen=$(visual_len "$r_line")
+        r_pad=$((right_w - r_vlen))
         r_padding=""
         [ $r_pad -gt 0 ] && r_padding=$(printf "%${r_pad}s" "")
         
@@ -672,8 +683,8 @@ else
         else
           e_line=$(truncate_ansi "$e_line" "$ext_w")
         fi
-        e_raw=$(strip_ansi "$e_line")
-        e_pad=$((ext_w - ${#e_raw}))
+        e_vlen=$(visual_len "$e_line")
+        e_pad=$((ext_w - e_vlen))
         e_padding=""
         [ $e_pad -gt 0 ] && e_padding=$(printf "%${e_pad}s" "")
         echo -e "${BORDER_COLOR}│${RESTORE} ${l_line}${l_padding} ${BORDER_COLOR}│${RESTORE} ${r_line}${r_padding} ${BORDER_COLOR}│${RESTORE} ${e_line}${e_padding} ${BORDER_COLOR}│"

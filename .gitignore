@@ -1,5 +1,5 @@
 *.exe
-tinyfetch
+/tinyfetch
 node_modules/
 /.vscode/
 /.idea/
