@@ -502,7 +502,7 @@ total_borders=9
 
 available=$((term_w - min_logo_w - total_borders))
 if [ "$HAS_EXT" -eq 1 ]; then
-  right_w=$((available * 45 / 100))
+  right_w=$((available * 60 / 100))
   ext_w=$((available - right_w))
   [ $right_w -lt 20 ] && right_w=20
   [ $ext_w -lt 20 ] && ext_w=20

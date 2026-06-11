@@ -756,7 +756,7 @@ func main() {
 
 	available := termW - minLogoW - totalBorders
 	if hasExt {
-		rightW = available * 45 / 100
+		rightW = available * 60 / 100
 		extW = available - rightW
 		if rightW < 20 {
 			rightW = 20
