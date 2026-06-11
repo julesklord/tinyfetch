@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.1 - Responsive Layout & Structured Output Options
+- Implemented a dynamic terminal-responsive resizing system that scales columns, truncates overflow safely, and falls back automatically from 3-pane to 2-pane or 1-pane on smaller terminals to avoid frame deformation.
+- Added subtle divider lines (`╌╌╌╌`) between extended plugins.
+- Added `--minimal` flag to skip extended plugins entirely.
+- Added `--noframe` flag to render borderless columns with clean spacing.
+- Added `--output=(json|xml|txt)` to serialize system stats and simple plugins in JSON, XML, or plain TXT format.
+
 ## 0.3.0 - Multi-pane Layout & Extended Plugins
 - Designed and implemented a flexible layout system that dynamically scales from 1-pane to a 2-pane or 3-pane dashboard based on active assets and plugins.
 - Created a new directory `plugins/extended/` to store multi-line, complex plugins.

@@ -53,6 +53,9 @@ tinyfetch
 | :--- | :--- | :--- |
 | `--help` | `-h` | Display version and usage instructions. |
 | `--no-ascii` | | Omit the side-by-side system ASCII logo. |
+| `--minimal` | | Skip extended plugins and display a single info card. |
+| `--noframe` | | Omit the box borders and print layout side-by-side using spaces. |
+| `--output=FORMAT` | | Serialize system stats and simple plugins into structured output: `json`, `xml`, or `txt`. |
 
 ## Extensibility & Plugins
 

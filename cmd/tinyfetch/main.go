@@ -20,6 +20,124 @@ func runCommand(name string, arg ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
+func getTerminalWidth() int {
+	out := runCommand("tput", "cols")
+	if out != "" {
+		if w, err := strconv.Atoi(out); err == nil {
+			return w
+		}
+	}
+	return 80
+}
+
+func truncateANSI(s string, limit int) string {
+	var builder strings.Builder
+	visualLen := 0
+	inEscape := false
+	restoreCode := "\033[0m"
+
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\033' {
+			inEscape = true
+			builder.WriteByte(s[i])
+			continue
+		}
+		if inEscape {
+			builder.WriteByte(s[i])
+			if s[i] == 'm' {
+				inEscape = false
+			}
+			continue
+		}
+
+		if visualLen < limit {
+			r, size := utf8.DecodeRuneInString(s[i:])
+			builder.WriteRune(r)
+			i += size - 1
+			visualLen++
+		}
+	}
+	if visualLen >= limit {
+		builder.WriteString("…")
+	}
+	builder.WriteString(restoreCode)
+	return builder.String()
+}
+
+func printJSON(host, osName, kernel, uptime, shell, cpu, mem, disk string, keys, vals []string) {
+	fmt.Printf("{\n")
+	fmt.Printf("  \"host\": %q,\n", host)
+	fmt.Printf("  \"os\": %q,\n", osName)
+	fmt.Printf("  \"kernel\": %q,\n", kernel)
+	fmt.Printf("  \"uptime\": %q,\n", uptime)
+	fmt.Printf("  \"shell\": %q,\n", shell)
+	fmt.Printf("  \"cpu\": %q,\n", cpu)
+	fmt.Printf("  \"memory\": %q,\n", mem)
+	fmt.Printf("  \"disk\": %q", disk)
+
+	if len(keys) > 0 {
+		fmt.Printf(",\n  \"plugins\": {\n")
+		for i := 0; i < len(keys); i++ {
+			cleanVal := stripANSI(vals[i])
+			fmt.Printf("    %q: %q", keys[i], cleanVal)
+			if i < len(keys)-1 {
+				fmt.Printf(",\n")
+			} else {
+				fmt.Printf("\n")
+			}
+		}
+		fmt.Printf("  }\n")
+	} else {
+		fmt.Printf("\n")
+	}
+	fmt.Printf("}\n")
+}
+
+func printXML(host, osName, kernel, uptime, shell, cpu, mem, disk string, keys, vals []string) {
+	fmt.Printf("<tinyfetch>\n")
+	fmt.Printf("  <host>%s</host>\n", host)
+	fmt.Printf("  <os>%s</os>\n", osName)
+	fmt.Printf("  <kernel>%s</kernel>\n", kernel)
+	fmt.Printf("  <uptime>%s</uptime>\n", uptime)
+	fmt.Printf("  <shell>%s</shell>\n", shell)
+	fmt.Printf("  <cpu>%s</cpu>\n", cpu)
+	fmt.Printf("  <memory>%s</memory>\n", mem)
+	fmt.Printf("  <disk>%s</disk>\n", disk)
+	if len(keys) > 0 {
+		fmt.Printf("  <plugins>\n")
+		for i := 0; i < len(keys); i++ {
+			tag := strings.ToLower(keys[i])
+			var sb strings.Builder
+			for _, r := range tag {
+				if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+					sb.WriteRune(r)
+				} else {
+					sb.WriteRune('_')
+				}
+			}
+			tagStr := sb.String()
+			cleanVal := stripANSI(vals[i])
+			fmt.Printf("    <%s>%s</%s>\n", tagStr, cleanVal, tagStr)
+		}
+		fmt.Printf("  </plugins>\n")
+	}
+	fmt.Printf("</tinyfetch>\n")
+}
+
+func printTXT(host, osName, kernel, uptime, shell, cpu, mem, disk string, keys, vals []string) {
+	fmt.Printf("Host: %s\n", host)
+	fmt.Printf("OS: %s\n", osName)
+	fmt.Printf("Kernel: %s\n", kernel)
+	fmt.Printf("Uptime: %s\n", uptime)
+	fmt.Printf("Shell: %s\n", shell)
+	fmt.Printf("CPU: %s\n", cpu)
+	fmt.Printf("Memory: %s\n", mem)
+	fmt.Printf("Disk: %s\n", disk)
+	for i := 0; i < len(keys); i++ {
+		fmt.Printf("%s: %s\n", keys[i], stripANSI(vals[i]))
+	}
+}
+
 func getOSName() string {
 	if runtime.GOOS == "darwin" {
 		name := runCommand("sw_vers", "-productName")
@@ -258,11 +376,21 @@ func stripANSI(s string) string {
 
 func main() {
 	noASCII := false
+	minimal := false
+	noFrame := false
+	outputFmt := ""
+
 	for _, arg := range os.Args[1:] {
 		if arg == "--no-ascii" {
 			noASCII = true
+		} else if arg == "--minimal" {
+			minimal = true
+		} else if arg == "--noframe" {
+			noFrame = true
+		} else if strings.HasPrefix(arg, "--output=") {
+			outputFmt = strings.TrimPrefix(arg, "--output=")
 		} else if arg == "--help" || arg == "-h" {
-			fmt.Printf("Usage: %s [--no-ascii]\n", os.Args[0])
+			fmt.Printf("Usage: %s [--no-ascii] [--minimal] [--noframe] [--output=json|xml|txt]\n", os.Args[0])
 			os.Exit(0)
 		}
 	}
@@ -397,6 +525,9 @@ func main() {
 		lblue + "Disk:" + restore + "   " + diskVal,
 	}
 
+	var pluginKeys []string
+	var pluginVals []string
+
 	// Scan ./plugins directory
 	if entries, err := os.ReadDir("./plugins"); err == nil {
 		for _, entry := range entries {
@@ -411,7 +542,11 @@ func main() {
 						if pluginOut != "" {
 							if strings.Contains(pluginOut, ":") {
 								parts := strings.SplitN(pluginOut, ":", 2)
-								info = append(info, lblue+parts[0]+":"+restore+" "+strings.TrimSpace(parts[1]))
+								k := parts[0]
+								v := strings.TrimSpace(parts[1])
+								pluginKeys = append(pluginKeys, k)
+								pluginVals = append(pluginVals, v)
+								info = append(info, lblue+k+":"+restore+" "+v)
 							} else {
 								name := entry.Name()
 								if idx := strings.Index(name, "."); idx != -1 {
@@ -420,6 +555,8 @@ func main() {
 								if len(name) > 0 {
 									name = strings.ToUpper(name[:1]) + name[1:]
 								}
+								pluginKeys = append(pluginKeys, name)
+								pluginVals = append(pluginVals, pluginOut)
 								info = append(info, lblue+name+":"+restore+" "+pluginOut)
 							}
 						}
@@ -429,30 +566,50 @@ func main() {
 		}
 	}
 
+	// Intercept output format flag early
+	if outputFmt != "" {
+		switch outputFmt {
+		case "json":
+			printJSON(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+			os.Exit(0)
+		case "xml":
+			printXML(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+			os.Exit(0)
+		case "txt":
+			printTXT(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+			os.Exit(0)
+		default:
+			fmt.Fprintf(os.Stderr, "Unknown output format: %s\n", outputFmt)
+			os.Exit(1)
+		}
+	}
+
 	// Scan ./plugins/extended directory
 	var extInfo []string
 	hasExt := false
-	if entries, err := os.ReadDir("./plugins/extended"); err == nil {
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				infoPath := "./plugins/extended/" + entry.Name()
-				fileInfo, err := entry.Info()
-				if err == nil && (fileInfo.Mode()&0111 != 0) {
-					out, err := exec.Command(infoPath).Output()
-					if err == nil {
-						rawOut := string(out)
-						if strings.TrimSpace(rawOut) != "" {
-							lines := strings.Split(rawOut, "\n")
-							// Remove trailing empty line caused by Split on final newline
-							if len(lines) > 0 && lines[len(lines)-1] == "" {
-								lines = lines[:len(lines)-1]
-							}
-							if len(lines) > 0 {
-								for _, line := range lines {
-									extInfo = append(extInfo, line)
+	if !minimal {
+		if entries, err := os.ReadDir("./plugins/extended"); err == nil {
+			for _, entry := range entries {
+				if !entry.IsDir() {
+					infoPath := "./plugins/extended/" + entry.Name()
+					fileInfo, err := entry.Info()
+					if err == nil && (fileInfo.Mode()&0111 != 0) {
+						out, err := exec.Command(infoPath).Output()
+						if err == nil {
+							rawOut := string(out)
+							if strings.TrimSpace(rawOut) != "" {
+								lines := strings.Split(rawOut, "\n")
+								// Remove trailing empty line caused by Split on final newline
+								if len(lines) > 0 && lines[len(lines)-1] == "" {
+									lines = lines[:len(lines)-1]
 								}
-								extInfo = append(extInfo, "") // separator
-								hasExt = true
+								if len(lines) > 0 {
+									for _, line := range lines {
+										extInfo = append(extInfo, line)
+									}
+									extInfo = append(extInfo, "---") // subtle separation token
+									hasExt = true
+								}
 							}
 						}
 					}
@@ -460,17 +617,9 @@ func main() {
 			}
 		}
 	}
-	// Remove trailing empty line separator if present
-	if len(extInfo) > 0 && extInfo[len(extInfo)-1] == "" {
+	// Remove trailing separator token if present
+	if len(extInfo) > 0 && extInfo[len(extInfo)-1] == "---" {
 		extInfo = extInfo[:len(extInfo)-1]
-	}
-
-	maxLines := len(info)
-	if !noASCII && len(logo) > maxLines {
-		maxLines = len(logo)
-	}
-	if hasExt && len(extInfo) > maxLines {
-		maxLines = len(extInfo)
 	}
 
 	// Calculate maximum logo raw length
@@ -513,144 +662,281 @@ func main() {
 		}
 	}
 
+	// Get terminal width
+	termW := getTerminalWidth()
+
+	// DYNAMIC RESPONSIVE LAYOUT
+	minLogoW := leftW
+	if noASCII {
+		minLogoW = 0
+	}
+
+	// Disable features to fit terminal width if needed
+	if !noASCII && termW < (minLogoW+rightW+extW+9) {
+		if hasExt && termW >= (minLogoW+rightW+6) {
+			hasExt = false
+			extInfo = nil
+			extW = 0
+		} else {
+			noASCII = true
+			minLogoW = 0
+		}
+	}
+
+	if hasExt && termW < (rightW+extW+5) {
+		hasExt = false
+		extInfo = nil
+		extW = 0
+	}
+
+	// Limit maximum pane widths to avoid layout explosions
+	maxRightW := 45
+	maxExtW := 50
+	if rightW > maxRightW {
+		rightW = maxRightW
+	}
+	if hasExt && extW > maxExtW {
+		extW = maxExtW
+	}
+
+	// Proportional scaling down to fit remaining space
+	totalBorders := 9
+	if noASCII {
+		totalBorders = 5
+	}
+	if noFrame {
+		totalBorders = 6 // spaces instead of borders
+	}
+
+	available := termW - minLogoW - totalBorders
+	if (rightW + extW) > available {
+		if hasExt {
+			rightW = available * 45 / 100
+			extW = available - rightW
+			if rightW < 20 {
+				rightW = 20
+			}
+			if extW < 20 {
+				extW = 20
+			}
+		} else {
+			rightW = available
+			if rightW < 20 {
+				rightW = 20
+			}
+		}
+	}
+
+	// Re-evaluate maxLines after scaling/disabling
+	maxLines := len(info)
+	if !noASCII && len(logo) > maxLines {
+		maxLines = len(logo)
+	}
+	if hasExt && len(extInfo) > maxLines {
+		maxLines = len(extInfo)
+	}
+
 	borderCol := lblue
 
-	if !hasExt {
-		if noASCII {
-			// Case 1: Single pane (Info)
-			topLine := borderCol + "┌" + strings.Repeat("─", rightW+2) + "┐" + restore
-			botLine := borderCol + "└" + strings.Repeat("─", rightW+2) + "┘" + restore
-			fmt.Println(topLine)
-			for i := 0; i < maxLines; i++ {
-				rLine := ""
-				if i < len(info) {
-					rLine = info[i]
-				}
-				rRaw := utf8.RuneCountInString(stripANSI(rLine))
-				rPadCount := rightW - rRaw
-				rPadding := ""
-				if rPadCount > 0 {
-					rPadding = strings.Repeat(" ", rPadCount)
-				}
-				fmt.Printf("%s│%s %s%s %s│\n", borderCol, restore, rLine, rPadding, borderCol)
+	if noFrame {
+		// Borderless Rendering
+		for i := 0; i < maxLines; i++ {
+			logoPrint := ""
+			if !noASCII && i < len(logo) {
+				logoPrint = logo[i]
 			}
-			fmt.Println(botLine)
-		} else {
-			// Case 2: Double pane (Logo + Info)
-			topLine := borderCol + "┌" + strings.Repeat("─", leftW+2) + "┬" + strings.Repeat("─", rightW+2) + "┐" + restore
-			botLine := borderCol + "└" + strings.Repeat("─", leftW+2) + "┴" + strings.Repeat("─", rightW+2) + "┘" + restore
-			fmt.Println(topLine)
-			for i := 0; i < maxLines; i++ {
-				logoPrint := ""
-				if i < len(logo) {
-					logoPrint = logo[i]
-				}
-				lRaw := utf8.RuneCountInString(stripANSI(logoPrint))
-				lPadCount := leftW - lRaw
-				lPadding := ""
-				if lPadCount > 0 {
-					lPadding = strings.Repeat(" ", lPadCount)
-				}
-
-				infoPrint := ""
-				if i < len(info) {
-					infoPrint = info[i]
-				}
-				rRaw := utf8.RuneCountInString(stripANSI(infoPrint))
-				rPadCount := rightW - rRaw
-				rPadding := ""
-				if rPadCount > 0 {
-					rPadding = strings.Repeat(" ", rPadCount)
-				}
-
-				fmt.Printf("%s│%s %s%s %s│%s %s%s %s│\n",
-					borderCol, restore, logoPrint, lPadding,
-					borderCol, restore, infoPrint, rPadding,
-					borderCol)
+			lRaw := utf8.RuneCountInString(stripANSI(logoPrint))
+			lPadCount := leftW - lRaw
+			lPadding := ""
+			if lPadCount > 0 {
+				lPadding = strings.Repeat(" ", lPadCount)
 			}
-			fmt.Println(botLine)
+
+			infoPrint := ""
+			if i < len(info) {
+				infoPrint = info[i]
+			}
+			infoPrint = truncateANSI(infoPrint, rightW)
+			rRaw := utf8.RuneCountInString(stripANSI(infoPrint))
+			rPadCount := rightW - rRaw
+			rPadding := ""
+			if rPadCount > 0 {
+				rPadding = strings.Repeat(" ", rPadCount)
+			}
+
+			ePrint := ""
+			if hasExt && i < len(extInfo) {
+				ePrint = extInfo[i]
+			}
+			if ePrint == "---" {
+				ePrint = "\033[00;37m" + strings.Repeat("╌", extW) + restore
+			} else {
+				ePrint = truncateANSI(ePrint, extW)
+			}
+
+			var sb strings.Builder
+			if !noASCII {
+				sb.WriteString(" " + logoPrint + lPadding + "   ")
+			}
+			sb.WriteString(infoPrint + rPadding)
+			if hasExt {
+				sb.WriteString("   " + ePrint)
+			}
+			fmt.Println(sb.String())
 		}
 	} else {
-		if noASCII {
-			// Case 3: Double pane (Info + Extended)
-			topLine := borderCol + "┌" + strings.Repeat("─", rightW+2) + "┬" + strings.Repeat("─", extW+2) + "┐" + restore
-			botLine := borderCol + "└" + strings.Repeat("─", rightW+2) + "┴" + strings.Repeat("─", extW+2) + "┘" + restore
-			fmt.Println(topLine)
-			for i := 0; i < maxLines; i++ {
-				rLine := ""
-				if i < len(info) {
-					rLine = info[i]
+		// Framed Card Rendering
+		if !hasExt {
+			if noASCII {
+				// Case 1: Single pane (Info)
+				topLine := borderCol + "┌" + strings.Repeat("─", rightW+2) + "┐" + restore
+				botLine := borderCol + "└" + strings.Repeat("─", rightW+2) + "┘" + restore
+				fmt.Println(topLine)
+				for i := 0; i < maxLines; i++ {
+					rLine := ""
+					if i < len(info) {
+						rLine = info[i]
+					}
+					rLine = truncateANSI(rLine, rightW)
+					rRaw := utf8.RuneCountInString(stripANSI(rLine))
+					rPadCount := rightW - rRaw
+					rPadding := ""
+					if rPadCount > 0 {
+						rPadding = strings.Repeat(" ", rPadCount)
+					}
+					fmt.Printf("%s│%s %s%s %s│\n", borderCol, restore, rLine, rPadding, borderCol)
 				}
-				rRaw := utf8.RuneCountInString(stripANSI(rLine))
-				rPadCount := rightW - rRaw
-				rPadding := ""
-				if rPadCount > 0 {
-					rPadding = strings.Repeat(" ", rPadCount)
-				}
+				fmt.Println(botLine)
+			} else {
+				// Case 2: Double pane (Logo + Info)
+				topLine := borderCol + "┌" + strings.Repeat("─", leftW+2) + "┬" + strings.Repeat("─", rightW+2) + "┐" + restore
+				botLine := borderCol + "└" + strings.Repeat("─", leftW+2) + "┴" + strings.Repeat("─", rightW+2) + "┘" + restore
+				fmt.Println(topLine)
+				for i := 0; i < maxLines; i++ {
+					logoPrint := ""
+					if i < len(logo) {
+						logoPrint = logo[i]
+					}
+					lRaw := utf8.RuneCountInString(stripANSI(logoPrint))
+					lPadCount := leftW - lRaw
+					lPadding := ""
+					if lPadCount > 0 {
+						lPadding = strings.Repeat(" ", lPadCount)
+					}
 
-				eLine := ""
-				if i < len(extInfo) {
-					eLine = extInfo[i]
-				}
-				eRaw := utf8.RuneCountInString(stripANSI(eLine))
-				ePadCount := extW - eRaw
-				ePadding := ""
-				if ePadCount > 0 {
-					ePadding = strings.Repeat(" ", ePadCount)
-				}
+					infoPrint := ""
+					if i < len(info) {
+						infoPrint = info[i]
+					}
+					infoPrint = truncateANSI(infoPrint, rightW)
+					rRaw := utf8.RuneCountInString(stripANSI(infoPrint))
+					rPadCount := rightW - rRaw
+					rPadding := ""
+					if rPadCount > 0 {
+						rPadding = strings.Repeat(" ", rPadCount)
+					}
 
-				fmt.Printf("%s│%s %s%s %s│%s %s%s %s│\n",
-					borderCol, restore, rLine, rPadding,
-					borderCol, restore, eLine, ePadding,
-					borderCol)
+					fmt.Printf("%s│%s %s%s %s│%s %s%s %s│\n",
+						borderCol, restore, logoPrint, lPadding,
+						borderCol, restore, infoPrint, rPadding,
+						borderCol)
+				}
+				fmt.Println(botLine)
 			}
-			fmt.Println(botLine)
 		} else {
-			// Case 4: Triple pane (Logo + Info + Extended)
-			topLine := borderCol + "┌" + strings.Repeat("─", leftW+2) + "┬" + strings.Repeat("─", rightW+2) + "┬" + strings.Repeat("─", extW+2) + "┐" + restore
-			botLine := borderCol + "└" + strings.Repeat("─", leftW+2) + "┴" + strings.Repeat("─", rightW+2) + "┴" + strings.Repeat("─", extW+2) + "┘" + restore
-			fmt.Println(topLine)
-			for i := 0; i < maxLines; i++ {
-				logoPrint := ""
-				if i < len(logo) {
-					logoPrint = logo[i]
-				}
-				lRaw := utf8.RuneCountInString(stripANSI(logoPrint))
-				lPadCount := leftW - lRaw
-				lPadding := ""
-				if lPadCount > 0 {
-					lPadding = strings.Repeat(" ", lPadCount)
-				}
+			if noASCII {
+				// Case 3: Double pane (Info + Extended)
+				topLine := borderCol + "┌" + strings.Repeat("─", rightW+2) + "┬" + strings.Repeat("─", extW+2) + "┐" + restore
+				botLine := borderCol + "└" + strings.Repeat("─", rightW+2) + "┴" + strings.Repeat("─", extW+2) + "┘" + restore
+				fmt.Println(topLine)
+				for i := 0; i < maxLines; i++ {
+					rLine := ""
+					if i < len(info) {
+						rLine = info[i]
+					}
+					rLine = truncateANSI(rLine, rightW)
+					rRaw := utf8.RuneCountInString(stripANSI(rLine))
+					rPadCount := rightW - rRaw
+					rPadding := ""
+					if rPadCount > 0 {
+						rPadding = strings.Repeat(" ", rPadCount)
+					}
 
-				infoPrint := ""
-				if i < len(info) {
-					infoPrint = info[i]
-				}
-				rRaw := utf8.RuneCountInString(stripANSI(infoPrint))
-				rPadCount := rightW - rRaw
-				rPadding := ""
-				if rPadCount > 0 {
-					rPadding = strings.Repeat(" ", rPadCount)
-				}
+					eLine := ""
+					if i < len(extInfo) {
+						eLine = extInfo[i]
+					}
+					if eLine == "---" {
+						eLine = "\033[00;37m" + strings.Repeat("╌", extW) + restore
+					} else {
+						eLine = truncateANSI(eLine, extW)
+					}
+					eRaw := utf8.RuneCountInString(stripANSI(eLine))
+					ePadCount := extW - eRaw
+					ePadding := ""
+					if ePadCount > 0 {
+						ePadding = strings.Repeat(" ", ePadCount)
+					}
 
-				ePrint := ""
-				if i < len(extInfo) {
-					ePrint = extInfo[i]
+					fmt.Printf("%s│%s %s%s %s│%s %s%s %s│\n",
+						borderCol, restore, rLine, rPadding,
+						borderCol, restore, eLine, ePadding,
+						borderCol)
 				}
-				eRaw := utf8.RuneCountInString(stripANSI(ePrint))
-				ePadCount := extW - eRaw
-				ePadding := ""
-				if ePadCount > 0 {
-					ePadding = strings.Repeat(" ", ePadCount)
-				}
+				fmt.Println(botLine)
+			} else {
+				// Case 4: Triple pane (Logo + Info + Extended)
+				topLine := borderCol + "┌" + strings.Repeat("─", leftW+2) + "┬" + strings.Repeat("─", rightW+2) + "┬" + strings.Repeat("─", extW+2) + "┐" + restore
+				botLine := borderCol + "└" + strings.Repeat("─", leftW+2) + "┴" + strings.Repeat("─", rightW+2) + "┴" + strings.Repeat("─", extW+2) + "┘" + restore
+				fmt.Println(topLine)
+				for i := 0; i < maxLines; i++ {
+					logoPrint := ""
+					if i < len(logo) {
+						logoPrint = logo[i]
+					}
+					lRaw := utf8.RuneCountInString(stripANSI(logoPrint))
+					lPadCount := leftW - lRaw
+					lPadding := ""
+					if lPadCount > 0 {
+						lPadding = strings.Repeat(" ", lPadCount)
+					}
 
-				fmt.Printf("%s│%s %s%s %s│%s %s%s %s│%s %s%s %s│\n",
-					borderCol, restore, logoPrint, lPadding,
-					borderCol, restore, infoPrint, rPadding,
-					borderCol, restore, ePrint, ePadding,
-					borderCol)
+					infoPrint := ""
+					if i < len(info) {
+						infoPrint = info[i]
+					}
+					infoPrint = truncateANSI(infoPrint, rightW)
+					rRaw := utf8.RuneCountInString(stripANSI(infoPrint))
+					rPadCount := rightW - rRaw
+					rPadding := ""
+					if rPadCount > 0 {
+						rPadding = strings.Repeat(" ", rPadCount)
+					}
+
+					ePrint := ""
+					if i < len(extInfo) {
+						ePrint = extInfo[i]
+					}
+					if ePrint == "---" {
+						ePrint = "\033[00;37m" + strings.Repeat("╌", extW) + restore
+					} else {
+						ePrint = truncateANSI(ePrint, extW)
+					}
+					eRaw := utf8.RuneCountInString(stripANSI(ePrint))
+					ePadCount := extW - eRaw
+					ePadding := ""
+					if ePadCount > 0 {
+						ePadding = strings.Repeat(" ", ePadCount)
+					}
+
+					fmt.Printf("%s│%s %s%s %s│%s %s%s %s│%s %s%s %s│\n",
+						borderCol, restore, logoPrint, lPadding,
+						borderCol, restore, infoPrint, rPadding,
+						borderCol, restore, ePrint, ePadding,
+						borderCol)
+				}
+				fmt.Println(botLine)
 			}
-			fmt.Println(botLine)
 		}
 	}
 }
