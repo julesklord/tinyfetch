@@ -463,22 +463,27 @@ fi
 min_logo_w=$left_w
 [ "$NO_ASCII" -eq 1 ] && min_logo_w=0
 
-# Disable features to fit terminal width if needed
-if [ "$NO_ASCII" -eq 0 ] && [ "$term_w" -lt $((min_logo_w + right_w + ext_w + 9)) ]; then
-  if [ "$HAS_EXT" -eq 1 ] && [ "$term_w" -ge $((min_logo_w + right_w + 6)) ]; then
-    HAS_EXT=0
-    ext_info=()
-    ext_w=0
-  else
+# Only disable features if the terminal is physically too small to fit the shrunken columns
+if [ "$NO_ASCII" -eq 0 ] && [ "$HAS_EXT" -eq 1 ]; then
+  if [ "$term_w" -lt 65 ]; then
     NO_ASCII=1
     min_logo_w=0
   fi
 fi
 
-if [ "$HAS_EXT" -eq 1 ] && [ "$term_w" -lt $((right_w + ext_w + 5)) ]; then
-  HAS_EXT=0
-  ext_info=()
-  ext_w=0
+if [ "$HAS_EXT" -eq 1 ]; then
+  if [ "$term_w" -lt 45 ]; then
+    HAS_EXT=0
+    ext_info=()
+    ext_w=0
+  fi
+fi
+
+if [ "$NO_ASCII" -eq 0 ] && [ "$HAS_EXT" -eq 0 ]; then
+  if [ "$term_w" -lt 41 ]; then
+    NO_ASCII=1
+    min_logo_w=0
+  fi
 fi
 
 # Limit maximum pane widths to avoid layout explosions

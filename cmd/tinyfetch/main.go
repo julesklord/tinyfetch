@@ -671,22 +671,27 @@ func main() {
 		minLogoW = 0
 	}
 
-	// Disable features to fit terminal width if needed
-	if !noASCII && termW < (minLogoW+rightW+extW+9) {
-		if hasExt && termW >= (minLogoW+rightW+6) {
-			hasExt = false
-			extInfo = nil
-			extW = 0
-		} else {
+	// Only disable features if the terminal is physically too small to fit the shrunken columns
+	if !noASCII && hasExt {
+		if termW < 65 {
 			noASCII = true
 			minLogoW = 0
 		}
 	}
 
-	if hasExt && termW < (rightW+extW+5) {
-		hasExt = false
-		extInfo = nil
-		extW = 0
+	if hasExt {
+		if termW < 45 {
+			hasExt = false
+			extInfo = nil
+			extW = 0
+		}
+	}
+
+	if !noASCII && !hasExt {
+		if termW < 41 {
+			noASCII = true
+			minLogoW = 0
+		}
 	}
 
 	// Limit maximum pane widths to avoid layout explosions

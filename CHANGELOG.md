@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.2 - Proportional Layout Scaling
+- Fixed premature single-pane fallback behavior. The side-by-side logo and info columns are now fully preserved by default using proportional column scaling down to 65, 45, and 41 terminal columns, rather than aggressively dropping logo panels.
+
 ## 0.3.1 - Responsive Layout & Structured Output Options
 - Implemented a dynamic terminal-responsive resizing system that scales columns, truncates overflow safely, and falls back automatically from 3-pane to 2-pane or 1-pane on smaller terminals to avoid frame deformation.
 - Added subtle divider lines (`╌╌╌╌`) between extended plugins.
