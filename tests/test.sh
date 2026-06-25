@@ -72,14 +72,12 @@ run_suite() {
   fi
 }
 
-# 1. Run Shell script test
-run_suite "bash scripts/tinyfetch.sh" "Shell"
-
-# 2. Run Go version test (if compiled)
+# Run Go version test (if compiled)
 if [ -f "./tinyfetch" ]; then
   run_suite "./tinyfetch" "Go"
 else
-  echo "Skipping Go tests: binary not built"
+  echo "Error: tinyfetch binary not built"
+  exit 1
 fi
 
 if [ "$failed" -eq 0 ]; then

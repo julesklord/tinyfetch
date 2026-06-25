@@ -11,7 +11,7 @@ build:
 		echo "No Go implementation found — nothing to build"; \
 	fi
 
-# Install: prefer the built binary if present, otherwise install script
+# Install: install built binary
 install: build
 	@if [ -d "ascii" ]; then \
 		mkdir -p /usr/local/share/tinyfetch/ascii; \
@@ -21,11 +21,8 @@ install: build
 	@if [ -f "$(BINARY)" ]; then \
 		install -m 0755 $(BINARY) /usr/local/bin/$(BINARY); \
 		echo "Installed built $(BINARY) binary to /usr/local/bin/$(BINARY)"; \
-	elif [ -f "scripts/tinyfetch.sh" ]; then \
-		install -m 0755 scripts/tinyfetch.sh /usr/local/bin/$(BINARY); \
-		echo "Installed scripts/tinyfetch.sh as /usr/local/bin/$(BINARY)"; \
 	else \
-		echo "Nothing to install"; exit 1; \
+		echo "Nothing to install (binary not found)"; exit 1; \
 	fi
 
 
