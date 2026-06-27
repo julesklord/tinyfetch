@@ -81,3 +81,66 @@ func TestTruncateANSI(t *testing.T) {
 		})
 	}
 }
+
+func TestGetBar(t *testing.T) {
+	tests := []struct {
+		name string
+		pct  int
+		want string
+	}{
+		{
+			name: "Negative (clamp to 0, Green)",
+			pct:  -10,
+			want: "\033[01;32m\033[0m\033[00;37m░░░░░░░░░░\033[0m",
+		},
+		{
+			name: "Zero (clamp to 0, Green)",
+			pct:  0,
+			want: "\033[01;32m\033[0m\033[00;37m░░░░░░░░░░\033[0m",
+		},
+		{
+			name: "30 percent (3 filled, Green)",
+			pct:  30,
+			want: "\033[01;32m███\033[0m\033[00;37m░░░░░░░\033[0m",
+		},
+		{
+			name: "50 percent (5 filled, Green)",
+			pct:  50,
+			want: "\033[01;32m█████\033[0m\033[00;37m░░░░░\033[0m",
+		},
+		{
+			name: "60 percent (6 filled, Yellow)",
+			pct:  60,
+			want: "\033[01;33m██████\033[0m\033[00;37m░░░░\033[0m",
+		},
+		{
+			name: "80 percent (8 filled, Yellow)",
+			pct:  80,
+			want: "\033[01;33m████████\033[0m\033[00;37m░░\033[0m",
+		},
+		{
+			name: "90 percent (9 filled, Red)",
+			pct:  90,
+			want: "\033[01;31m█████████\033[0m\033[00;37m░\033[0m",
+		},
+		{
+			name: "100 percent (10 filled, Red)",
+			pct:  100,
+			want: "\033[01;31m██████████\033[0m\033[00;37m\033[0m",
+		},
+		{
+			name: "> 100 percent (clamp to 10 filled, Red)",
+			pct:  150,
+			want: "\033[01;31m██████████\033[0m\033[00;37m\033[0m",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getBar(tt.pct)
+			if got != tt.want {
+				t.Errorf("getBar(%d) = %q; want %q", tt.pct, got, tt.want)
+			}
+		})
+	}
+}
