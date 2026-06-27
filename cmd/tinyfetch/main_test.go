@@ -81,3 +81,29 @@ func TestTruncateANSI(t *testing.T) {
 		})
 	}
 }
+
+func TestStripANSI(t *testing.T) {
+	tests := []struct {
+		name string
+		s    string
+		want string
+	}{
+		{"empty string", "", ""},
+		{"no ANSI", "hello world", "hello world"},
+		{"basic ANSI color", "\033[01;34mhello\033[0m", "hello"},
+		{"only ANSI", "\033[01;34m\033[0m", ""},
+		{"multiple ANSI sequences", "\033[31mred\033[0m \033[32mgreen\033[0m", "red green"},
+		{"ANSI with non-m terminator", "\033[31red", ""}, // Current implementation eats everything until 'm' or EOF
+		{"ANSI at the very end", "hello\033[0m", "hello"},
+		{"incomplete ANSI sequence", "hello\033", "hello"}, // Last byte is ESC
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripANSI(tt.s)
+			if got != tt.want {
+				t.Errorf("stripANSI(%q) = %q; want %q", tt.s, got, tt.want)
+			}
+		})
+	}
+}
