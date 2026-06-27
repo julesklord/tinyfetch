@@ -1,0 +1,669 @@
+     1	package main
+     2
+     3	import (
+     4		"bufio"
+     5		"context"
+     6		"fmt"
+     7		"os"
+     8		"os/exec"
+     9		"runtime"
+    10		"strconv"
+    11		"strings"
+    12		"time"
+    13	)
+    14
+    15	func main() {
+    16		noASCII := false
+    17		minimal := false
+    18		noFrame := false
+    19		outputFmt := ""
+    20
+    21		for _, arg := range os.Args[1:] {
+    22			if arg == "--no-ascii" {
+    23				noASCII = true
+    24			} else if arg == "--minimal" {
+    25				minimal = true
+    26			} else if arg == "--noframe" {
+    27				noFrame = true
+    28			} else if strings.HasPrefix(arg, "--output=") {
+    29				outputFmt = strings.TrimPrefix(arg, "--output=")
+    30			} else if arg == "--help" || arg == "-h" {
+    31				fmt.Printf("Usage: %s [--no-ascii] [--minimal] [--noframe] [--output=json|xml|txt]\n", os.Args[0])
+    32				os.Exit(0)
+    33			}
+    34		}
+    35
+    36		hostname, _ := os.Hostname()
+    37		osName := getOSName()
+    38		kernel := runCommand("uname", "-r")
+    39		uptimeVal := getUptime()
+    40		shellVal := os.Getenv("SHELL")
+    41		if shellVal == "" {
+    42			shellVal = "sh"
+    43		}
+    44		cpuVal := getCPU()
+    45
+    46		memRaw := getMemory()
+    47		diskRaw := getDisk()
+    48
+    49		var pluginKeys []string
+    50		var pluginVals []string
+    51
+    52		// Scan ./plugins directory
+    53		if entries, err := os.ReadDir("./plugins"); err == nil {
+    54			for _, entry := range entries {
+    55				if !entry.IsDir() {
+    56					infoPath := "./plugins/" + entry.Name()
+    57					fileInfo, err := entry.Info()
+    58					if err == nil && (fileInfo.Mode()&0111 != 0) {
+    59						out := runCommandWithTimeout(2*time.Second, infoPath)
+    60						if out != "" {
+    61							lines := strings.Split(out, "\n")
+    62							pluginOut := strings.TrimSpace(lines[0])
+    63							if pluginOut != "" {
+    64								if strings.Contains(pluginOut, ":") {
+    65									parts := strings.SplitN(pluginOut, ":", 2)
+    66									k := parts[0]
+    67									v := strings.TrimSpace(parts[1])
+    68									pluginKeys = append(pluginKeys, k)
+    69									pluginVals = append(pluginVals, v)
+    70								} else {
+    71									name := entry.Name()
+    72									if idx := strings.Index(name, "."); idx != -1 {
+    73										name = name[:idx]
+    74									}
+    75									if len(name) > 0 {
+    76										name = strings.ToUpper(name[:1]) + name[1:]
+    77									}
+    78									pluginKeys = append(pluginKeys, name)
+    79									pluginVals = append(pluginVals, pluginOut)
+    80								}
+    81							}
+    82						}
+    83					}
+    84				}
+    85			}
+    86		}
+    87
+    88		// Intercept output format flag early
+    89		if outputFmt != "" {
+    90			switch outputFmt {
+    91			case "json":
+    92				printJSON(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+    93				os.Exit(0)
+    94			case "xml":
+    95				printXML(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+    96				os.Exit(0)
+    97			case "txt":
+    98				printTXT(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+    99				os.Exit(0)
+   100			default:
+   101				fmt.Fprintf(os.Stderr, "Unknown output format: %s\n", outputFmt)
+   102				os.Exit(1)
+   103			}
+   104		}
+   105
+   106		// Memory & Progress Bar
+   107		memVal := memRaw
+   108		if strings.Contains(memRaw, "%") {
+   109			pctPart := strings.Split(memRaw, "%")[0]
+   110			if pct, err := strconv.Atoi(strings.TrimSpace(pctPart)); err == nil {
+   111				memVal = getBar(pct) + " " + memRaw
+   112			}
+   113		}
+   114
+   115		// Disk & Progress Bar
+   116		diskVal := diskRaw
+   117		if strings.Contains(diskRaw, "%") {
+   118			idx := strings.Index(diskRaw, "%")
+   119			start := idx
+   120			for start > 0 && diskRaw[start-1] >= '0' && diskRaw[start-1] <= '9' {
+   121				start--
+   122			}
+   123			if pctStr := diskRaw[start:idx]; pctStr != "" {
+   124				if pct, err := strconv.Atoi(pctStr); err == nil {
+   125					diskVal = getBar(pct) + " " + diskRaw
+   126				}
+   127			}
+   128		}
+   129
+   130		// Colors
+   131		restore := "\033[0m"
+   132		lblue := "\033[01;34m"
+   133		lyellow := "\033[01;33m"
+   134		lcyan := "\033[01;36m"
+   135		white := "\033[01;37m"
+   136
+   137		// Setup Logo
+   138		var logo []string
+   139		if !noASCII {
+   140			distroID := getDistroID()
+   141			homeDir, _ := os.UserHomeDir()
+   142			// Paths to search
+   143			searchPaths := []string{
+   144				"./ascii/" + distroID + ".txt",
+   145				homeDir + "/.local/share/tinyfetch/ascii/" + distroID + ".txt",
+   146				"/usr/local/share/tinyfetch/ascii/" + distroID + ".txt",
+   147				"/usr/share/tinyfetch/ascii/" + distroID + ".txt",
+   148			}
+   149
+   150			asciiPath := ""
+   151			for _, path := range searchPaths {
+   152				if _, err := os.Stat(path); err == nil {
+   153					asciiPath = path
+   154					break
+   155				}
+   156			}
+   157
+   158			// Fallback to generic if not found
+   159			if asciiPath == "" {
+   160				fallback := "linux"
+   161				if runtime.GOOS == "darwin" {
+   162					fallback = "darwin"
+   163				}
+   164				fallbackPaths := []string{
+   165					"./ascii/" + fallback + ".txt",
+   166					homeDir + "/.local/share/tinyfetch/ascii/" + fallback + ".txt",
+   167					"/usr/local/share/tinyfetch/ascii/" + fallback + ".txt",
+   168					"/usr/share/tinyfetch/ascii/" + fallback + ".txt",
+   169				}
+   170				for _, path := range fallbackPaths {
+   171					if _, err := os.Stat(path); err == nil {
+   172						asciiPath = path
+   173						break
+   174					}
+   175				}
+   176			}
+   177
+   178			if asciiPath != "" {
+   179				file, err := os.Open(asciiPath)
+   180				if err == nil {
+   181					defer file.Close()
+   182					scanner := bufio.NewScanner(file)
+   183					for scanner.Scan() {
+   184						logo = append(logo, scanner.Text())
+   185					}
+   186				}
+   187			}
+   188
+   189			// Hardcoded fallbacks if no file is available
+   190			if len(logo) == 0 {
+   191				if runtime.GOOS == "darwin" {
+   192					logo = []string{
+   193						lcyan + "      .---." + restore,
+   194						lcyan + "     /     \\" + restore,
+   195						lcyan + "     \\__   /" + restore,
+   196						lcyan + "    /   `-' \\" + restore,
+   197						lcyan + "   |         |" + restore,
+   198						lcyan + "    \\       /" + restore,
+   199						lcyan + "     `-...-'" + restore,
+   200					}
+   201				} else {
+   202					logo = []string{
+   203						lyellow + "     .---." + restore,
+   204						lyellow + "    /     \\" + restore,
+   205						lblue + "    \\ " + restore + white + "o o" + restore + lblue + " /" + restore,
+   206						lyellow + "    /  \\-/ \\" + restore,
+   207						lyellow + "   / /     \\ \\" + restore,
+   208						lyellow + "  ( (_     _ ) )" + restore,
+   209						lyellow + "   `(_`---'_)''" + restore,
+   210					}
+   211				}
+   212			}
+   213		}
+   214
+   215		// Setup Info
+   216		info := []string{
+   217			lblue + "Host:" + restore + "   " + hostname,
+   218			lblue + "OS:" + restore + "     " + osName,
+   219			lblue + "Kernel:" + restore + " " + kernel,
+   220			lblue + "Uptime:" + restore + " " + uptimeVal,
+   221			lblue + "Shell:" + restore + "  " + shellVal,
+   222			lblue + "CPU:" + restore + "    " + cpuVal,
+   223			lblue + "Memory:" + restore + " " + memVal,
+   224			lblue + "Disk:" + restore + "   " + diskVal,
+   225		}
+   226
+   227		for i := 0; i < len(pluginKeys); i++ {
+   228			info = append(info, lblue+pluginKeys[i]+":"+restore+" "+pluginVals[i])
+   229		}
+   230
+   231		// Scan ./plugins/extended directory
+   232		var extInfo []string
+   233		hasExt := false
+   234		if !minimal {
+   235			if entries, err := os.ReadDir("./plugins/extended"); err == nil {
+   236				for _, entry := range entries {
+   237					if !entry.IsDir() {
+   238						infoPath := "./plugins/extended/" + entry.Name()
+   239						fileInfo, err := entry.Info()
+   240						if err == nil && (fileInfo.Mode()&0111 != 0) {
+   241							ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+   242							out, err := exec.CommandContext(ctx, infoPath).Output()
+   243							cancel()
+   244							if err == nil {
+   245								rawOut := string(out)
+   246								if strings.TrimSpace(rawOut) != "" {
+   247									lines := strings.Split(rawOut, "\n")
+   248									// Remove trailing empty line caused by Split on final newline
+   249									if len(lines) > 0 && lines[len(lines)-1] == "" {
+   250										lines = lines[:len(lines)-1]
+   251									}
+   252									if len(lines) > 0 {
+   253										for _, line := range lines {
+   254											extInfo = append(extInfo, line)
+   255										}
+   256										extInfo = append(extInfo, "---") // subtle separation token
+   257										hasExt = true
+   258									}
+   259								}
+   260							}
+   261						}
+   262					}
+   263				}
+   264			}
+   265		}
+   266		// Remove trailing separator token if present
+   267		if len(extInfo) > 0 && extInfo[len(extInfo)-1] == "---" {
+   268			extInfo = extInfo[:len(extInfo)-1]
+   269		}
+   270
+   271		// Calculate maximum logo raw length
+   272		leftW := 0
+   273		if !noASCII {
+   274			for _, line := range logo {
+   275				rawLen := visualLength(line)
+   276				if rawLen > leftW {
+   277					leftW = rawLen
+   278				}
+   279			}
+   280			if leftW < 16 {
+   281				leftW = 16
+   282			}
+   283		}
+   284
+   285		// Calculate maximum info raw length
+   286		rightW := 0
+   287		for _, line := range info {
+   288			rawLen := visualLength(line)
+   289			if rawLen > rightW {
+   290				rightW = rawLen
+   291			}
+   292		}
+   293
+   294		// Calculate maximum extended info raw length
+   295		extW := 0
+   296		if hasExt {
+   297			for _, line := range extInfo {
+   298				rawLen := visualLength(line)
+   299				if rawLen > extW {
+   300					extW = rawLen
+   301				}
+   302			}
+   303			if extW < 24 {
+   304				extW = 24
+   305			}
+   306		}
+   307
+   308		// Get terminal width
+   309		termW := getTerminalWidth()
+   310
+   311		// DYNAMIC RESPONSIVE LAYOUT
+   312		minLogoW := leftW
+   313		if noASCII {
+   314			minLogoW = 0
+   315		}
+   316		// Only disable features if the terminal is physically too small to fit the shrunken columns
+   317		if !noASCII && hasExt {
+   318			if termW < 65 {
+   319				// Keep features active, but they will stack vertically if termW is small
+   320			}
+   321		}
+   322
+   323		// Calculate the maximum raw lengths for layout decisions
+   324		maxInfoLineW := 0
+   325		for _, line := range info {
+   326			rawLen := visualLength(line)
+   327			if rawLen > maxInfoLineW {
+   328				maxInfoLineW = rawLen
+   329			}
+   330		}
+   331
+   332		maxExtLineW := 0
+   333		if hasExt {
+   334			for _, line := range extInfo {
+   335				rawLen := visualLength(line)
+   336				if rawLen > maxExtLineW {
+   337					maxExtLineW = rawLen
+   338				}
+   339			}
+   340		}
+   341
+   342		// Determine margins/borders needed for side-by-side layout
+   343		numActivePanes := 0
+   344		if !noASCII {
+   345			numActivePanes++
+   346		}
+   347		numActivePanes++ // info is always active
+   348		if hasExt {
+   349			numActivePanes++
+   350		}
+   351
+   352		bordersSideBySide := 5 // 1 pane (noASCII, !hasExt) -> ┌──────┐ (5 chars)
+   353		if numActivePanes == 2 {
+   354			bordersSideBySide = 6 // ┌────┬────┐ (6 chars)
+   355		} else if numActivePanes == 3 {
+   356			bordersSideBySide = 9 // ┌────┬────┬────┐ (9 chars)
+   357		}
+   358		if noFrame {
+   359			bordersSideBySide = 0
+   360			if !noASCII {
+   361				bordersSideBySide += 4 // Logo spacer: 4 spaces
+   362			}
+   363			if hasExt {
+   364				bordersSideBySide += 3 // Extended spacer: 3 spaces
+   365			}
+   366		}
+   367
+   368		minInfoW := 20
+   369		minExtW := 0
+   370		if hasExt {
+   371			minExtW = 20
+   372		}
+   373		minSideBySideWidth := leftW + minInfoW + minExtW + bordersSideBySide
+   374
+   375		useVerticalLayout := getTerminalWidth() < minSideBySideWidth
+   376
+   377		borderCol := lblue
+   378
+   379		if useVerticalLayout {
+   380			// Vertical stacked layout: Draw title bars for each pane sequentially
+   381			boxW := termW - 4
+   382			if boxW < 12 {
+   383				boxW = 12
+   384			}
+   385
+   386			drawVerticalBox := func(title string, lines []string) {
+   387				if noFrame {
+   388					fmt.Println(borderCol + "--- " + title + " ---" + restore)
+   389					for _, line := range lines {
+   390						printLine := line
+   391						if printLine == "---" {
+   392							printLine = "\033[00;37m" + strings.Repeat("╌", termW) + restore
+   393						} else {
+   394							printLine = truncateANSI(printLine, termW)
+   395						}
+   396						fmt.Println(printLine)
+   397					}
+   398					fmt.Println()
+   399				} else {
+   400					titleStr := " " + title + " "
+   401					titleLen := len(title) + 2
+   402					fillW := boxW - titleLen - 2
+   403					if fillW < 2 {
+   404						fillW = 2
+   405					}
+   406
+   407					topBorder := borderCol + "┌──" + restore + titleStr + borderCol + strings.Repeat("─", fillW) + "┐" + restore
+   408					botBorder := borderCol + "└" + strings.Repeat("─", boxW) + "┘" + restore
+   409
+   410					fmt.Println(topBorder)
+   411					for _, line := range lines {
+   412						printLine := line
+   413						if printLine == "---" {
+   414							printLine = "\033[00;37m" + strings.Repeat("╌", boxW-2) + restore
+   415						} else {
+   416							printLine = truncateANSI(printLine, boxW-2)
+   417						}
+   418						visualLen := visualLength(printLine)
+   419						padding := boxW - 2 - visualLen
+   420						if padding < 0 {
+   421							padding = 0
+   422						}
+   423						padStr := strings.Repeat(" ", padding)
+   424						fmt.Printf("%s│%s %s%s %s│\n", borderCol, restore, printLine, padStr, borderCol)
+   425					}
+   426					fmt.Println(botBorder)
+   427				}
+   428			}
+   429
+   430			if !noASCII && len(logo) > 0 {
+   431				drawVerticalBox("OS Logo", logo)
+   432			}
+   433			if len(info) > 0 {
+   434				drawVerticalBox("System Info", info)
+   435			}
+   436			if hasExt && len(extInfo) > 0 {
+   437				drawVerticalBox("Plugins & Diagnostics", extInfo)
+   438			}
+   439		} else {
+   440			// Proportional scaling to use the entire terminal width
+   441			available := termW - minLogoW - bordersSideBySide
+   442			if hasExt {
+   443				rightW = available * 50 / 100
+   444				extW = available - rightW
+   445				if rightW < 20 {
+   446					rightW = 20
+   447				}
+   448				if extW < 20 {
+   449					extW = 20
+   450				}
+   451			} else {
+   452				rightW = available
+   453				if rightW < 20 {
+   454					rightW = 20
+   455				}
+   456			}
+   457
+   458			// Re-evaluate maxLines after scaling/disabling
+   459			maxLines := len(info)
+   460			if !noASCII && len(logo) > maxLines {
+   461				maxLines = len(logo)
+   462			}
+   463			if hasExt && len(extInfo) > maxLines {
+   464				maxLines = len(extInfo)
+   465			}
+   466
+   467			if noFrame {
+   468				// Borderless Rendering
+   469				for i := 0; i < maxLines; i++ {
+   470					logoPrint := ""
+   471					if !noASCII && i < len(logo) {
+   472						logoPrint = logo[i]
+   473					}
+   474					lRaw := visualLength(logoPrint)
+   475					lPadCount := leftW - lRaw
+   476					lPadding := ""
+   477					if lPadCount > 0 {
+   478						lPadding = strings.Repeat(" ", lPadCount)
+   479					}
+   480
+   481					infoPrint := ""
+   482					if i < len(info) {
+   483						infoPrint = info[i]
+   484					}
+   485					infoPrint = truncateANSI(infoPrint, rightW)
+   486					rRaw := visualLength(infoPrint)
+   487					rPadCount := rightW - rRaw
+   488					rPadding := ""
+   489					if rPadCount > 0 {
+   490						rPadding = strings.Repeat(" ", rPadCount)
+   491					}
+   492
+   493					ePrint := ""
+   494					if hasExt && i < len(extInfo) {
+   495						ePrint = extInfo[i]
+   496					}
+   497					if ePrint == "---" {
+   498						ePrint = "\033[00;37m" + strings.Repeat("╌", extW) + restore
+   499					} else {
+   500						ePrint = truncateANSI(ePrint, extW)
+   501					}
+   502
+   503					var sb strings.Builder
+   504					if !noASCII {
+   505						sb.WriteString(" " + logoPrint + lPadding + "   ")
+   506					}
+   507					sb.WriteString(infoPrint + rPadding)
+   508					if hasExt {
+   509						sb.WriteString("   " + ePrint)
+   510					}
+   511					fmt.Println(sb.String())
+   512				}
+   513			} else {
+   514				// Framed Card Rendering
+   515				if !hasExt {
+   516					if noASCII {
+   517						// Case 1: Single pane (Info)
+   518						topLine := borderCol + "┌" + strings.Repeat("─", rightW+2) + "┐" + restore
+   519						botLine := borderCol + "└" + strings.Repeat("─", rightW+2) + "┘" + restore
+   520						fmt.Println(topLine)
+   521						for i := 0; i < maxLines; i++ {
+   522							rLine := ""
+   523							if i < len(info) {
+   524								rLine = info[i]
+   525							}
+   526							rLine = truncateANSI(rLine, rightW)
+   527							rRaw := visualLength(rLine)
+   528							rPadCount := rightW - rRaw
+   529							rPadding := ""
+   530							if rPadCount > 0 {
+   531								rPadding = strings.Repeat(" ", rPadCount)
+   532							}
+   533							fmt.Printf("%s│%s %s%s %s│\n", borderCol, restore, rLine, rPadding, borderCol)
+   534						}
+   535						fmt.Println(botLine)
+   536					} else {
+   537						// Case 2: Double pane (Logo + Info)
+   538						topLine := borderCol + "┌" + strings.Repeat("─", leftW+2) + "┬" + strings.Repeat("─", rightW+2) + "┐" + restore
+   539						botLine := borderCol + "└" + strings.Repeat("─", leftW+2) + "┴" + strings.Repeat("─", rightW+2) + "┘" + restore
+   540						fmt.Println(topLine)
+   541						for i := 0; i < maxLines; i++ {
+   542							logoPrint := ""
+   543							if i < len(logo) {
+   544								logoPrint = logo[i]
+   545							}
+   546							lRaw := visualLength(logoPrint)
+   547							lPadCount := leftW - lRaw
+   548							lPadding := ""
+   549							if lPadCount > 0 {
+   550								lPadding = strings.Repeat(" ", lPadCount)
+   551							}
+   552
+   553							infoPrint := ""
+   554							if i < len(info) {
+   555								infoPrint = info[i]
+   556							}
+   557							infoPrint = truncateANSI(infoPrint, rightW)
+   558							rRaw := visualLength(infoPrint)
+   559							rPadCount := rightW - rRaw
+   560							rPadding := ""
+   561							if rPadCount > 0 {
+   562								rPadding = strings.Repeat(" ", rPadCount)
+   563							}
+   564
+   565							fmt.Printf("%s│%s %s%s %s│%s %s%s %s│\n",
+   566								borderCol, restore, logoPrint, lPadding,
+   567								borderCol, restore, infoPrint, rPadding,
+   568								borderCol)
+   569						}
+   570						fmt.Println(botLine)
+   571					}
+   572				} else {
+   573					if noASCII {
+   574						// Case 3: Double pane (Info + Extended)
+   575						topLine := borderCol + "┌" + strings.Repeat("─", rightW+2) + "┬" + strings.Repeat("─", extW+2) + "┐" + restore
+   576						botLine := borderCol + "└" + strings.Repeat("─", rightW+2) + "┴" + strings.Repeat("─", extW+2) + "┘" + restore
+   577						fmt.Println(topLine)
+   578						for i := 0; i < maxLines; i++ {
+   579							rLine := ""
+   580							if i < len(info) {
+   581								rLine = info[i]
+   582							}
+   583							rLine = truncateANSI(rLine, rightW)
+   584							rRaw := visualLength(rLine)
+   585							rPadCount := rightW - rRaw
+   586							rPadding := ""
+   587							if rPadCount > 0 {
+   588								rPadding = strings.Repeat(" ", rPadCount)
+   589							}
+   590
+   591							eLine := ""
+   592							if i < len(extInfo) {
+   593								eLine = extInfo[i]
+   594							}
+   595							if eLine == "---" {
+   596								eLine = "\033[00;37m" + strings.Repeat("╌", extW) + restore
+   597							} else {
+   598								eLine = truncateANSI(eLine, extW)
+   599							}
+   600							eRaw := visualLength(eLine)
+   601							ePadCount := extW - eRaw
+   602							ePadding := ""
+   603							if ePadCount > 0 {
+   604								ePadding = strings.Repeat(" ", ePadCount)
+   605							}
+   606
+   607							fmt.Printf("%s│%s %s%s %s│%s %s%s %s│\n",
+   608								borderCol, restore, rLine, rPadding,
+   609								borderCol, restore, eLine, ePadding,
+   610								borderCol)
+   611						}
+   612						fmt.Println(botLine)
+   613					} else {
+   614						// Case 4: Triple pane (Logo + Info + Extended)
+   615						topLine := borderCol + "┌" + strings.Repeat("─", leftW+2) + "┬" + strings.Repeat("─", rightW+2) + "┬" + strings.Repeat("─", extW+2) + "┐" + restore
+   616						botLine := borderCol + "└" + strings.Repeat("─", leftW+2) + "┴" + strings.Repeat("─", rightW+2) + "┴" + strings.Repeat("─", extW+2) + "┘" + restore
+   617						fmt.Println(topLine)
+   618						for i := 0; i < maxLines; i++ {
+   619							logoPrint := ""
+   620							if i < len(logo) {
+   621								logoPrint = logo[i]
+   622							}
+   623							lRaw := visualLength(logoPrint)
+   624							lPadCount := leftW - lRaw
+   625							lPadding := ""
+   626							if lPadCount > 0 {
+   627								lPadding = strings.Repeat(" ", lPadCount)
+   628							}
+   629
+   630							infoPrint := ""
+   631							if i < len(info) {
+   632								infoPrint = info[i]
+   633							}
+   634							infoPrint = truncateANSI(infoPrint, rightW)
+   635							rRaw := visualLength(infoPrint)
+   636							rPadCount := rightW - rRaw
+   637							rPadding := ""
+   638							if rPadCount > 0 {
+   639								rPadding = strings.Repeat(" ", rPadCount)
+   640							}
+   641
+   642							ePrint := ""
+   643							if i < len(extInfo) {
+   644								ePrint = extInfo[i]
+   645							}
+   646							if ePrint == "---" {
+   647								ePrint = "\033[00;37m" + strings.Repeat("╌", extW) + restore
+   648							} else {
+   649								ePrint = truncateANSI(ePrint, extW)
+   650							}
+   651							eRaw := visualLength(ePrint)
+   652							ePadCount := extW - eRaw
+   653							ePadding := ""
+   654							if ePadCount > 0 {
+   655								ePadding = strings.Repeat(" ", ePadCount)
+   656							}
+   657
+   658							fmt.Printf("%s│%s %s%s %s│%s %s%s %s│%s %s%s %s│\n",
+   659								borderCol, restore, logoPrint, lPadding,
+   660								borderCol, restore, infoPrint, rPadding,
+   661								borderCol, restore, ePrint, ePadding,
+   662								borderCol)
+   663						}
+   664						fmt.Println(botLine)
+   665					}
+   666				}
+   667			}
+   668		}
+   669	}

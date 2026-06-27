@@ -12,7 +12,20 @@ import (
 	"time"
 )
 
-func main() {
+type SystemInfo struct {
+	Hostname   string
+	OSName     string
+	Kernel     string
+	UptimeVal  string
+	ShellVal   string
+	CPUVal     string
+	MemRaw     string
+	DiskRaw    string
+	PluginKeys []string
+	PluginVals []string
+}
+
+func parseFlags() (bool, bool, bool, string) {
 	noASCII := false
 	minimal := false
 	noFrame := false
@@ -32,7 +45,10 @@ func main() {
 			os.Exit(0)
 		}
 	}
+	return noASCII, minimal, noFrame, outputFmt
+}
 
+func gatherInfo() SystemInfo {
 	hostname, _ := os.Hostname()
 	osName := getOSName()
 	kernel := runCommand("uname", "-r")
@@ -85,17 +101,32 @@ func main() {
 		}
 	}
 
+	return SystemInfo{
+		Hostname:   hostname,
+		OSName:     osName,
+		Kernel:     kernel,
+		UptimeVal:  uptimeVal,
+		ShellVal:   shellVal,
+		CPUVal:     cpuVal,
+		MemRaw:     memRaw,
+		DiskRaw:    diskRaw,
+		PluginKeys: pluginKeys,
+		PluginVals: pluginVals,
+	}
+}
+
+func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj SystemInfo) {
 	// Intercept output format flag early
 	if outputFmt != "" {
 		switch outputFmt {
 		case "json":
-			printJSON(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+			printJSON(infoObj.Hostname, infoObj.OSName, infoObj.Kernel, infoObj.UptimeVal, infoObj.ShellVal, infoObj.CPUVal, infoObj.MemRaw, infoObj.DiskRaw, infoObj.PluginKeys, infoObj.PluginVals)
 			os.Exit(0)
 		case "xml":
-			printXML(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+			printXML(infoObj.Hostname, infoObj.OSName, infoObj.Kernel, infoObj.UptimeVal, infoObj.ShellVal, infoObj.CPUVal, infoObj.MemRaw, infoObj.DiskRaw, infoObj.PluginKeys, infoObj.PluginVals)
 			os.Exit(0)
 		case "txt":
-			printTXT(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+			printTXT(infoObj.Hostname, infoObj.OSName, infoObj.Kernel, infoObj.UptimeVal, infoObj.ShellVal, infoObj.CPUVal, infoObj.MemRaw, infoObj.DiskRaw, infoObj.PluginKeys, infoObj.PluginVals)
 			os.Exit(0)
 		default:
 			fmt.Fprintf(os.Stderr, "Unknown output format: %s\n", outputFmt)
@@ -104,35 +135,35 @@ func main() {
 	}
 
 	// Memory & Progress Bar
-	memVal := memRaw
-	if strings.Contains(memRaw, "%") {
-		pctPart := strings.Split(memRaw, "%")[0]
+	memVal := infoObj.MemRaw
+	if strings.Contains(infoObj.MemRaw, "%") {
+		pctPart := strings.Split(infoObj.MemRaw, "%")[0]
 		if pct, err := strconv.Atoi(strings.TrimSpace(pctPart)); err == nil {
-			memVal = getBar(pct) + " " + memRaw
+			memVal = getBar(pct) + " " + infoObj.MemRaw
 		}
 	}
 
 	// Disk & Progress Bar
-	diskVal := diskRaw
-	if strings.Contains(diskRaw, "%") {
-		idx := strings.Index(diskRaw, "%")
+	diskVal := infoObj.DiskRaw
+	if strings.Contains(infoObj.DiskRaw, "%") {
+		idx := strings.Index(infoObj.DiskRaw, "%")
 		start := idx
-		for start > 0 && diskRaw[start-1] >= '0' && diskRaw[start-1] <= '9' {
+		for start > 0 && infoObj.DiskRaw[start-1] >= '0' && infoObj.DiskRaw[start-1] <= '9' {
 			start--
 		}
-		if pctStr := diskRaw[start:idx]; pctStr != "" {
+		if pctStr := infoObj.DiskRaw[start:idx]; pctStr != "" {
 			if pct, err := strconv.Atoi(pctStr); err == nil {
-				diskVal = getBar(pct) + " " + diskRaw
+				diskVal = getBar(pct) + " " + infoObj.DiskRaw
 			}
 		}
 	}
 
 	// Colors
-	restore := "\033[0m"
-	lblue := "\033[01;34m"
-	lyellow := "\033[01;33m"
-	lcyan := "\033[01;36m"
-	white := "\033[01;37m"
+	restore := "[0m"
+	lblue := "[01;34m"
+	lyellow := "[01;33m"
+	lcyan := "[01;36m"
+	white := "[01;37m"
 
 	// Setup Logo
 	var logo []string
@@ -214,18 +245,18 @@ func main() {
 
 	// Setup Info
 	info := []string{
-		lblue + "Host:" + restore + "   " + hostname,
-		lblue + "OS:" + restore + "     " + osName,
-		lblue + "Kernel:" + restore + " " + kernel,
-		lblue + "Uptime:" + restore + " " + uptimeVal,
-		lblue + "Shell:" + restore + "  " + shellVal,
-		lblue + "CPU:" + restore + "    " + cpuVal,
+		lblue + "Host:" + restore + "   " + infoObj.Hostname,
+		lblue + "OS:" + restore + "     " + infoObj.OSName,
+		lblue + "Kernel:" + restore + " " + infoObj.Kernel,
+		lblue + "Uptime:" + restore + " " + infoObj.UptimeVal,
+		lblue + "Shell:" + restore + "  " + infoObj.ShellVal,
+		lblue + "CPU:" + restore + "    " + infoObj.CPUVal,
 		lblue + "Memory:" + restore + " " + memVal,
 		lblue + "Disk:" + restore + "   " + diskVal,
 	}
 
-	for i := 0; i < len(pluginKeys); i++ {
-		info = append(info, lblue+pluginKeys[i]+":"+restore+" "+pluginVals[i])
+	for i := 0; i < len(infoObj.PluginKeys); i++ {
+		info = append(info, lblue+infoObj.PluginKeys[i]+":"+restore+" "+infoObj.PluginVals[i])
 	}
 
 	// Scan ./plugins/extended directory
@@ -389,7 +420,7 @@ func main() {
 				for _, line := range lines {
 					printLine := line
 					if printLine == "---" {
-						printLine = "\033[00;37m" + strings.Repeat("╌", termW) + restore
+						printLine = "[00;37m" + strings.Repeat("╌", termW) + restore
 					} else {
 						printLine = truncateANSI(printLine, termW)
 					}
@@ -411,7 +442,7 @@ func main() {
 				for _, line := range lines {
 					printLine := line
 					if printLine == "---" {
-						printLine = "\033[00;37m" + strings.Repeat("╌", boxW-2) + restore
+						printLine = "[00;37m" + strings.Repeat("╌", boxW-2) + restore
 					} else {
 						printLine = truncateANSI(printLine, boxW-2)
 					}
@@ -495,7 +526,7 @@ func main() {
 					ePrint = extInfo[i]
 				}
 				if ePrint == "---" {
-					ePrint = "\033[00;37m" + strings.Repeat("╌", extW) + restore
+					ePrint = "[00;37m" + strings.Repeat("╌", extW) + restore
 				} else {
 					ePrint = truncateANSI(ePrint, extW)
 				}
@@ -593,7 +624,7 @@ func main() {
 							eLine = extInfo[i]
 						}
 						if eLine == "---" {
-							eLine = "\033[00;37m" + strings.Repeat("╌", extW) + restore
+							eLine = "[00;37m" + strings.Repeat("╌", extW) + restore
 						} else {
 							eLine = truncateANSI(eLine, extW)
 						}
@@ -644,7 +675,7 @@ func main() {
 							ePrint = extInfo[i]
 						}
 						if ePrint == "---" {
-							ePrint = "\033[00;37m" + strings.Repeat("╌", extW) + restore
+							ePrint = "[00;37m" + strings.Repeat("╌", extW) + restore
 						} else {
 							ePrint = truncateANSI(ePrint, extW)
 						}
@@ -666,4 +697,10 @@ func main() {
 			}
 		}
 	}
+}
+
+func main() {
+	noASCII, minimal, noFrame, outputFmt := parseFlags()
+	infoObj := gatherInfo()
+	renderOutput(noASCII, minimal, noFrame, outputFmt, infoObj)
 }
