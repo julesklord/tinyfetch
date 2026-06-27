@@ -45,8 +45,8 @@ done <<< "$status_out"
 # Get ahead/behind status
 ahead=0
 behind=0
-if git rev-parse --abbrev-ref @{u} >/dev/null 2>&1; then
-  upstream_status=$(git rev-list --left-right --count HEAD...@{u} 2>/dev/null)
+if git rev-parse --abbrev-ref @\{u\} >/dev/null 2>&1; then
+  upstream_status=$(git rev-list --left-right --count HEAD...@\{u\} 2>/dev/null)
   ahead=$(echo "$upstream_status" | cut -f1)
   behind=$(echo "$upstream_status" | cut -f2)
 fi
