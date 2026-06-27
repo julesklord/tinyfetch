@@ -18,7 +18,7 @@ jobs:
       - name: shellcheck
         uses: ludeeus/action-shellcheck@2.0.0
         with:
-          args: scripts/tinyfetch.sh
+          scandir: "scripts"
       - name: Build
         run: make build
       - name: Run Tests
