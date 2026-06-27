@@ -17,17 +17,7 @@ assert_contains() {
   fi
 }
 
-assert_eq() {
-  local val1="$1"
-  local val2="$2"
-  local name="$3"
-  if [ "$val1" -eq "$val2" ]; then
-    echo "  [PASS] $name"
-  else
-    echo "  [FAIL] $name (Expected $val2, got $val1)"
-    failed=1
-  fi
-}
+
 
 run_suite() {
   local cmd="$1"
@@ -55,7 +45,7 @@ run_suite() {
   local no_ascii_out
   no_ascii_out=$($cmd --no-ascii)
   local line_count
-  line_count=$(echo "$no_ascii_out" | grep -v "^$" | wc -l)
+  line_count=$(echo "$no_ascii_out" | grep -c -v "^$" || true)
   if [ "$line_count" -ge 8 ]; then
     echo "  [PASS] $type: --no-ascii prints at least 8 lines ($line_count)"
   else
