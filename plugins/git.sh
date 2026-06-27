@@ -14,7 +14,6 @@ RESTORE="${ESC}[0m"
 GREEN="${ESC}[01;32m"
 YELLOW="${ESC}[01;33m"
 RED="${ESC}[01;31m"
-CYAN="${ESC}[01;36m"
 
 # Get branch name
 branch=$(git branch --show-current 2>/dev/null || git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "detached")
@@ -26,7 +25,7 @@ staged=0
 modified=0
 untracked=0
 
-while IFS= read -r line; do
+while IFS= read -r line || [[ -n "$line" ]]; do
   [ -z "$line" ] && continue
   index_status="${line:0:1}"
   work_status="${line:1:1}"
@@ -46,8 +45,8 @@ done <<< "$status_out"
 # Get ahead/behind status
 ahead=0
 behind=0
-if git rev-parse --abbrev-ref @{u} >/dev/null 2>&1; then
-  upstream_status=$(git rev-list --left-right --count HEAD...@{u} 2>/dev/null)
+if git rev-parse --abbrev-ref @"{u}" >/dev/null 2>&1; then
+  upstream_status=$(git rev-list --left-right --count HEAD...@"{u}" 2>/dev/null)
   ahead=$(echo "$upstream_status" | cut -f1)
   behind=$(echo "$upstream_status" | cut -f2)
 fi

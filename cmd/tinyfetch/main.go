@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -50,10 +51,15 @@ func main() {
 	var pluginVals []string
 
 	// Scan ./plugins directory
-	if entries, err := os.ReadDir("./plugins"); err == nil {
+
+	pluginsDir := getPluginsDir()
+	extPluginsDir := filepath.Join(pluginsDir, "extended")
+
+	// Scan plugins directory
+	if entries, err := os.ReadDir(pluginsDir); err == nil {
 		for _, entry := range entries {
 			if !entry.IsDir() {
-				infoPath := "./plugins/" + entry.Name()
+				infoPath := filepath.Join(pluginsDir, entry.Name())
 				fileInfo, err := entry.Info()
 				if err == nil && (fileInfo.Mode()&0111 != 0) {
 					out := runCommandWithTimeout(2*time.Second, infoPath)
@@ -232,10 +238,10 @@ func main() {
 	var extInfo []string
 	hasExt := false
 	if !minimal {
-		if entries, err := os.ReadDir("./plugins/extended"); err == nil {
+		if entries, err := os.ReadDir(extPluginsDir); err == nil {
 			for _, entry := range entries {
 				if !entry.IsDir() {
-					infoPath := "./plugins/extended/" + entry.Name()
+					infoPath := filepath.Join(extPluginsDir, entry.Name())
 					fileInfo, err := entry.Info()
 					if err == nil && (fileInfo.Mode()&0111 != 0) {
 						ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -666,4 +672,19 @@ func main() {
 			}
 		}
 	}
+}
+
+func getPluginsDir() string {
+	if env := os.Getenv("TINYFETCH_PLUGINS_DIR"); env != "" {
+		return env
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return "./plugins"
+	}
+	realExe, err := filepath.EvalSymlinks(exe)
+	if err != nil {
+		realExe = exe
+	}
+	return filepath.Join(filepath.Dir(realExe), "plugins")
 }
