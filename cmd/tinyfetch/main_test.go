@@ -11,8 +11,8 @@ func TestRuneWidth(t *testing.T) {
 	}{
 		{'A', 1},
 		{'\u200d', 0}, // Zero-width joiner
-		{'界', 2},    // CJK character
-		{'🌸', 2},    // Emoji
+		{'界', 2},      // CJK character
+		{'🌸', 2},      // Emoji
 	}
 
 	for _, tt := range tests {
@@ -31,7 +31,7 @@ func TestVisualLength(t *testing.T) {
 	}{
 		{"ASCII plain", "hello", 5},
 		{"ANSI color strip", "\033[01;34mHost:\033[0m   myhost", 14},
-		{"CJK characters", "hello世界", 9}, // 5 (hello) + 4 (世界)
+		{"CJK characters", "hello世界", 9},               // 5 (hello) + 4 (世界)
 		{"Nerd Fonts / Emojis", "Host:  Spotify", 15}, // 6 (Host: ) + 1 () + 8 ( Spotify)
 	}
 

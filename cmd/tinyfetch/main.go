@@ -415,12 +415,7 @@ func main() {
 					} else {
 						printLine = truncateANSI(printLine, boxW-2)
 					}
-					visualLen := visualLength(printLine)
-					padding := boxW - 2 - visualLen
-					if padding < 0 {
-						padding = 0
-					}
-					padStr := strings.Repeat(" ", padding)
+					padStr := padString(printLine, boxW-2)
 					fmt.Printf("%s│%s %s%s %s│\n", borderCol, restore, printLine, padStr, borderCol)
 				}
 				fmt.Println(botBorder)
@@ -471,24 +466,14 @@ func main() {
 				if !noASCII && i < len(logo) {
 					logoPrint = logo[i]
 				}
-				lRaw := visualLength(logoPrint)
-				lPadCount := leftW - lRaw
-				lPadding := ""
-				if lPadCount > 0 {
-					lPadding = strings.Repeat(" ", lPadCount)
-				}
+				lPadding := padString(logoPrint, leftW)
 
 				infoPrint := ""
 				if i < len(info) {
 					infoPrint = info[i]
 				}
 				infoPrint = truncateANSI(infoPrint, rightW)
-				rRaw := visualLength(infoPrint)
-				rPadCount := rightW - rRaw
-				rPadding := ""
-				if rPadCount > 0 {
-					rPadding = strings.Repeat(" ", rPadCount)
-				}
+				rPadding := padString(infoPrint, rightW)
 
 				ePrint := ""
 				if hasExt && i < len(extInfo) {
@@ -524,12 +509,7 @@ func main() {
 							rLine = info[i]
 						}
 						rLine = truncateANSI(rLine, rightW)
-						rRaw := visualLength(rLine)
-						rPadCount := rightW - rRaw
-						rPadding := ""
-						if rPadCount > 0 {
-							rPadding = strings.Repeat(" ", rPadCount)
-						}
+						rPadding := padString(rLine, rightW)
 						fmt.Printf("%s│%s %s%s %s│\n", borderCol, restore, rLine, rPadding, borderCol)
 					}
 					fmt.Println(botLine)
@@ -543,24 +523,14 @@ func main() {
 						if i < len(logo) {
 							logoPrint = logo[i]
 						}
-						lRaw := visualLength(logoPrint)
-						lPadCount := leftW - lRaw
-						lPadding := ""
-						if lPadCount > 0 {
-							lPadding = strings.Repeat(" ", lPadCount)
-						}
+						lPadding := padString(logoPrint, leftW)
 
 						infoPrint := ""
 						if i < len(info) {
 							infoPrint = info[i]
 						}
 						infoPrint = truncateANSI(infoPrint, rightW)
-						rRaw := visualLength(infoPrint)
-						rPadCount := rightW - rRaw
-						rPadding := ""
-						if rPadCount > 0 {
-							rPadding = strings.Repeat(" ", rPadCount)
-						}
+						rPadding := padString(infoPrint, rightW)
 
 						fmt.Printf("%s│%s %s%s %s│%s %s%s %s│\n",
 							borderCol, restore, logoPrint, lPadding,
@@ -581,12 +551,7 @@ func main() {
 							rLine = info[i]
 						}
 						rLine = truncateANSI(rLine, rightW)
-						rRaw := visualLength(rLine)
-						rPadCount := rightW - rRaw
-						rPadding := ""
-						if rPadCount > 0 {
-							rPadding = strings.Repeat(" ", rPadCount)
-						}
+						rPadding := padString(rLine, rightW)
 
 						eLine := ""
 						if i < len(extInfo) {
@@ -597,12 +562,7 @@ func main() {
 						} else {
 							eLine = truncateANSI(eLine, extW)
 						}
-						eRaw := visualLength(eLine)
-						ePadCount := extW - eRaw
-						ePadding := ""
-						if ePadCount > 0 {
-							ePadding = strings.Repeat(" ", ePadCount)
-						}
+						ePadding := padString(eLine, extW)
 
 						fmt.Printf("%s│%s %s%s %s│%s %s%s %s│\n",
 							borderCol, restore, rLine, rPadding,
@@ -620,24 +580,14 @@ func main() {
 						if i < len(logo) {
 							logoPrint = logo[i]
 						}
-						lRaw := visualLength(logoPrint)
-						lPadCount := leftW - lRaw
-						lPadding := ""
-						if lPadCount > 0 {
-							lPadding = strings.Repeat(" ", lPadCount)
-						}
+						lPadding := padString(logoPrint, leftW)
 
 						infoPrint := ""
 						if i < len(info) {
 							infoPrint = info[i]
 						}
 						infoPrint = truncateANSI(infoPrint, rightW)
-						rRaw := visualLength(infoPrint)
-						rPadCount := rightW - rRaw
-						rPadding := ""
-						if rPadCount > 0 {
-							rPadding = strings.Repeat(" ", rPadCount)
-						}
+						rPadding := padString(infoPrint, rightW)
 
 						ePrint := ""
 						if i < len(extInfo) {
@@ -648,12 +598,7 @@ func main() {
 						} else {
 							ePrint = truncateANSI(ePrint, extW)
 						}
-						eRaw := visualLength(ePrint)
-						ePadCount := extW - eRaw
-						ePadding := ""
-						if ePadCount > 0 {
-							ePadding = strings.Repeat(" ", ePadCount)
-						}
+						ePadding := padString(ePrint, extW)
 
 						fmt.Printf("%s│%s %s%s %s│%s %s%s %s│%s %s%s %s│\n",
 							borderCol, restore, logoPrint, lPadding,

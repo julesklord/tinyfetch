@@ -6,8 +6,8 @@ set -euo pipefail
 ESC=$(printf '\033')
 BLUE="${ESC}[01;34m"
 RESTORE="${ESC}[0m"
-GREEN="${ESC}[01;32m"
-YELLOW="${ESC}[01;33m"
+#GREEN="${ESC}[01;32m"
+#YELLOW="${ESC}[01;33m"
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 0
