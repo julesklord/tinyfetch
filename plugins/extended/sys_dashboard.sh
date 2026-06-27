@@ -5,7 +5,6 @@ set -euo pipefail
 ESC=$(printf '\033')
 BLUE="${ESC}[01;34m"
 RESTORE="${ESC}[0m"
-GREEN="${ESC}[01;32m"
 YELLOW="${ESC}[01;33m"
 
 echo "${BLUE}┌── System Dashboard ──┐${RESTORE}"

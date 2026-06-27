@@ -18,11 +18,11 @@ if [ -z "$local_ip" ] && command -v hostname >/dev/null 2>&1; then
 fi
 
 if [ -z "$local_ip" ] && command -v ifconfig >/dev/null 2>&1; then
-  local_ip=$(ifconfig 2>/dev/null | grep -E "inet " | grep -v "127.0.0.1" | awk '{print $2; exit}' | tr -d 'addr:' || echo "")
+  local_ip=$(ifconfig 2>/dev/null | grep -E "inet " | grep -v "127.0.0.1" | awk '{print $2; exit}' | sed 's/addr://' || echo "")
 fi
 
 # Get Public IP (with 1s timeout to prevent hanging)
-public_ip=$(curl -s --connect-timeout 1 icanhazip.com 2>/dev/null | xargs || echo "")
+public_ip=$(curl -s --connect-timeout 1 https://icanhazip.com 2>/dev/null | xargs || echo "")
 
 # Build output
 output=""
