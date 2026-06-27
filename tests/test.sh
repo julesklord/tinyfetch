@@ -16,9 +16,10 @@ assert_contains() {
     failed=1
   fi
 }
-# shellcheck disable=SC2317
 
+# shellcheck disable=SC2317
 assert_eq() {
+# shellcheck disable=SC2317
   local val1="$1"
   local val2="$2"
   local name="$3"
