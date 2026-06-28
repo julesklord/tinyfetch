@@ -8,7 +8,7 @@ BLUE="${ESC}[01;34m"
 RESTORE="${ESC}[0m"
 
 # Fetch weather forecast from wttr.in with a 2s timeout
-weather=$(curl -s --connect-timeout 2 "wttr.in/?0&Q&T" 2>/dev/null || echo "")
+weather=$(curl -s --connect-timeout 2 "https://wttr.in/?0&Q&T" 2>/dev/null || echo "")
 
 if [ -z "$weather" ] || echo "$weather" | grep -q -E "Error|502|503|504|Gateway|Timeout"; then
   exit 0
