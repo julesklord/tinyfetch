@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -36,7 +37,7 @@ func parseFlags() (bool, bool, bool, string) {
 	return noASCII, minimal, noFrame, outputFmt
 }
 
-func gatherInfo() SystemInfo {
+func gatherInfo(pluginsDir string) SystemInfo {
 	hostname, _ := os.Hostname()
 	osName := getOSName()
 	kernel := runCommand("uname", "-r")
@@ -53,8 +54,8 @@ func gatherInfo() SystemInfo {
 	var pluginKeys []string
 	var pluginVals []string
 
-	// Scan ./plugins directory
-	if entries, err := os.ReadDir("./plugins"); err == nil {
+	// Scan plugins directory
+	if entries, err := os.ReadDir(pluginsDir); err == nil {
 		type pluginResult struct {
 			key string
 			val string
@@ -65,7 +66,7 @@ func gatherInfo() SystemInfo {
 
 		for i, entry := range entries {
 			if !entry.IsDir() {
-				infoPath := "./plugins/" + entry.Name()
+				infoPath := filepath.Join(pluginsDir, entry.Name())
 				fileInfo, err := entry.Info()
 				if err == nil && (fileInfo.Mode()&0111 != 0) {
 					wg.Add(1)
@@ -120,7 +121,7 @@ func gatherInfo() SystemInfo {
 	}
 }
 
-func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj SystemInfo) {
+func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj SystemInfo, extPluginsDir string) {
 	// Intercept output format flag early
 	if outputFmt != "" {
 		switch outputFmt {
@@ -264,11 +265,11 @@ func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj Syst
 		info = append(info, lblue+infoObj.Keys[i]+":"+restore+" "+infoObj.Vals[i])
 	}
 
-	// Scan ./plugins/extended directory
+	// Scan extended plugins directory
 	var extInfo []string
 	hasExt := false
 	if !minimal {
-		if entries, err := os.ReadDir("./plugins/extended"); err == nil {
+		if entries, err := os.ReadDir(extPluginsDir); err == nil {
 			type extResult struct {
 				lines []string
 				ok    bool
@@ -278,7 +279,7 @@ func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj Syst
 
 			for i, entry := range entries {
 				if !entry.IsDir() {
-					infoPath := "./plugins/extended/" + entry.Name()
+					infoPath := filepath.Join(extPluginsDir, entry.Name())
 					fileInfo, err := entry.Info()
 					if err == nil && (fileInfo.Mode()&0111 != 0) {
 						wg.Add(1)
@@ -667,8 +668,25 @@ func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj Syst
 	}
 }
 
+func getPluginsDir() string {
+	if env := os.Getenv("TINYFETCH_PLUGINS_DIR"); env != "" {
+		return env
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return "./plugins"
+	}
+	realExe, err := filepath.EvalSymlinks(exe)
+	if err != nil {
+		realExe = exe
+	}
+	return filepath.Join(filepath.Dir(realExe), "plugins")
+}
+
 func main() {
 	noASCII, minimal, noFrame, outputFmt := parseFlags()
-	infoObj := gatherInfo()
-	renderOutput(noASCII, minimal, noFrame, outputFmt, infoObj)
+	pluginsDir := getPluginsDir()
+	extPluginsDir := filepath.Join(pluginsDir, "extended")
+	infoObj := gatherInfo(pluginsDir)
+	renderOutput(noASCII, minimal, noFrame, outputFmt, infoObj, extPluginsDir)
 }
