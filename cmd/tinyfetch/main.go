@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func main() {
+func parseFlags() (bool, bool, bool, string) {
 	noASCII := false
 	minimal := false
 	noFrame := false
@@ -33,7 +33,10 @@ func main() {
 			os.Exit(0)
 		}
 	}
+	return noASCII, minimal, noFrame, outputFmt
+}
 
+func gatherInfo() SystemInfo {
 	hostname, _ := os.Hostname()
 	osName := getOSName()
 	kernel := runCommand("uname", "-r")
@@ -103,30 +106,32 @@ func main() {
 		}
 	}
 
+	return SystemInfo{
+		Host:   hostname,
+		OSName: osName,
+		Kernel: kernel,
+		Uptime: uptimeVal,
+		Shell:  shellVal,
+		CPU:    cpuVal,
+		Memory: memRaw,
+		Disk:   diskRaw,
+		Keys:   pluginKeys,
+		Vals:   pluginVals,
+	}
+}
+
+func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj SystemInfo) {
 	// Intercept output format flag early
 	if outputFmt != "" {
-		info := SystemInfo{
-			Host:   hostname,
-			OSName: osName,
-			Kernel: kernel,
-			Uptime: uptimeVal,
-			Shell:  shellVal,
-			CPU:    cpuVal,
-			Memory: memRaw,
-			Disk:   diskRaw,
-			Keys:   pluginKeys,
-			Vals:   pluginVals,
-		}
-
 		switch outputFmt {
 		case "json":
-			printJSON(info)
+			printJSON(infoObj)
 			os.Exit(0)
 		case "xml":
-			printXML(info)
+			printXML(infoObj)
 			os.Exit(0)
 		case "txt":
-			printTXT(info)
+			printTXT(infoObj)
 			os.Exit(0)
 		default:
 			fmt.Fprintf(os.Stderr, "Unknown output format: %s\n", outputFmt)
@@ -135,25 +140,25 @@ func main() {
 	}
 
 	// Memory & Progress Bar
-	memVal := memRaw
-	if strings.Contains(memRaw, "%") {
-		pctPart := strings.Split(memRaw, "%")[0]
+	memVal := infoObj.Memory
+	if strings.Contains(infoObj.Memory, "%") {
+		pctPart := strings.Split(infoObj.Memory, "%")[0]
 		if pct, err := strconv.Atoi(strings.TrimSpace(pctPart)); err == nil {
-			memVal = getBar(pct) + " " + memRaw
+			memVal = getBar(pct) + " " + infoObj.Memory
 		}
 	}
 
 	// Disk & Progress Bar
-	diskVal := diskRaw
-	if strings.Contains(diskRaw, "%") {
-		idx := strings.Index(diskRaw, "%")
+	diskVal := infoObj.Disk
+	if strings.Contains(infoObj.Disk, "%") {
+		idx := strings.Index(infoObj.Disk, "%")
 		start := idx
-		for start > 0 && diskRaw[start-1] >= '0' && diskRaw[start-1] <= '9' {
+		for start > 0 && infoObj.Disk[start-1] >= '0' && infoObj.Disk[start-1] <= '9' {
 			start--
 		}
-		if pctStr := diskRaw[start:idx]; pctStr != "" {
+		if pctStr := infoObj.Disk[start:idx]; pctStr != "" {
 			if pct, err := strconv.Atoi(pctStr); err == nil {
-				diskVal = getBar(pct) + " " + diskRaw
+				diskVal = getBar(pct) + " " + infoObj.Disk
 			}
 		}
 	}
@@ -245,18 +250,18 @@ func main() {
 
 	// Setup Info
 	info := []string{
-		lblue + "Host:" + restore + "   " + hostname,
-		lblue + "OS:" + restore + "     " + osName,
-		lblue + "Kernel:" + restore + " " + kernel,
-		lblue + "Uptime:" + restore + " " + uptimeVal,
-		lblue + "Shell:" + restore + "  " + shellVal,
-		lblue + "CPU:" + restore + "    " + cpuVal,
+		lblue + "Host:" + restore + "   " + infoObj.Host,
+		lblue + "OS:" + restore + "     " + infoObj.OSName,
+		lblue + "Kernel:" + restore + " " + infoObj.Kernel,
+		lblue + "Uptime:" + restore + " " + infoObj.Uptime,
+		lblue + "Shell:" + restore + "  " + infoObj.Shell,
+		lblue + "CPU:" + restore + "    " + infoObj.CPU,
 		lblue + "Memory:" + restore + " " + memVal,
 		lblue + "Disk:" + restore + "   " + diskVal,
 	}
 
-	for i := 0; i < len(pluginKeys); i++ {
-		info = append(info, lblue+pluginKeys[i]+":"+restore+" "+pluginVals[i])
+	for i := 0; i < len(infoObj.Keys); i++ {
+		info = append(info, lblue+infoObj.Keys[i]+":"+restore+" "+infoObj.Vals[i])
 	}
 
 	// Scan ./plugins/extended directory
@@ -660,4 +665,10 @@ func main() {
 			}
 		}
 	}
+}
+
+func main() {
+	noASCII, minimal, noFrame, outputFmt := parseFlags()
+	infoObj := gatherInfo()
+	renderOutput(noASCII, minimal, noFrame, outputFmt, infoObj)
 }
