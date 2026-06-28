@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -51,36 +52,53 @@ func main() {
 
 	// Scan ./plugins directory
 	if entries, err := os.ReadDir("./plugins"); err == nil {
-		for _, entry := range entries {
+		type pluginResult struct {
+			key string
+			val string
+			ok  bool
+		}
+		results := make([]pluginResult, len(entries))
+		var wg sync.WaitGroup
+
+		for i, entry := range entries {
 			if !entry.IsDir() {
 				infoPath := "./plugins/" + entry.Name()
 				fileInfo, err := entry.Info()
 				if err == nil && (fileInfo.Mode()&0111 != 0) {
-					out := runCommandWithTimeout(2*time.Second, infoPath)
-					if out != "" {
-						lines := strings.Split(out, "\n")
-						pluginOut := strings.TrimSpace(lines[0])
-						if pluginOut != "" {
-							if strings.Contains(pluginOut, ":") {
-								parts := strings.SplitN(pluginOut, ":", 2)
-								k := parts[0]
-								v := strings.TrimSpace(parts[1])
-								pluginKeys = append(pluginKeys, k)
-								pluginVals = append(pluginVals, v)
-							} else {
-								name := entry.Name()
-								if idx := strings.Index(name, "."); idx != -1 {
-									name = name[:idx]
+					wg.Add(1)
+					go func(idx int, path string, name string) {
+						defer wg.Done()
+						out := runCommandWithTimeout(2*time.Second, path)
+						if out != "" {
+							lines := strings.Split(out, "\n")
+							pluginOut := strings.TrimSpace(lines[0])
+							if pluginOut != "" {
+								if strings.Contains(pluginOut, ":") {
+									parts := strings.SplitN(pluginOut, ":", 2)
+									k := parts[0]
+									v := strings.TrimSpace(parts[1])
+									results[idx] = pluginResult{key: k, val: v, ok: true}
+								} else {
+									parsedName := name
+									if dotIdx := strings.Index(parsedName, "."); dotIdx != -1 {
+										parsedName = parsedName[:dotIdx]
+									}
+									if len(parsedName) > 0 {
+										parsedName = strings.ToUpper(parsedName[:1]) + parsedName[1:]
+									}
+									results[idx] = pluginResult{key: parsedName, val: pluginOut, ok: true}
 								}
-								if len(name) > 0 {
-									name = strings.ToUpper(name[:1]) + name[1:]
-								}
-								pluginKeys = append(pluginKeys, name)
-								pluginVals = append(pluginVals, pluginOut)
 							}
 						}
-					}
+					}(i, infoPath, entry.Name())
 				}
+			}
+		}
+		wg.Wait()
+		for _, res := range results {
+			if res.ok {
+				pluginKeys = append(pluginKeys, res.key)
+				pluginVals = append(pluginVals, res.val)
 			}
 		}
 	}
@@ -233,32 +251,50 @@ func main() {
 	hasExt := false
 	if !minimal {
 		if entries, err := os.ReadDir("./plugins/extended"); err == nil {
-			for _, entry := range entries {
+			type extResult struct {
+				lines []string
+				ok    bool
+			}
+			results := make([]extResult, len(entries))
+			var wg sync.WaitGroup
+
+			for i, entry := range entries {
 				if !entry.IsDir() {
 					infoPath := "./plugins/extended/" + entry.Name()
 					fileInfo, err := entry.Info()
 					if err == nil && (fileInfo.Mode()&0111 != 0) {
-						ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-						out, err := exec.CommandContext(ctx, infoPath).Output()
-						cancel()
-						if err == nil {
-							rawOut := string(out)
-							if strings.TrimSpace(rawOut) != "" {
-								lines := strings.Split(rawOut, "\n")
-								// Remove trailing empty line caused by Split on final newline
-								if len(lines) > 0 && lines[len(lines)-1] == "" {
-									lines = lines[:len(lines)-1]
-								}
-								if len(lines) > 0 {
-									for _, line := range lines {
-										extInfo = append(extInfo, line)
+						wg.Add(1)
+						go func(idx int, path string) {
+							defer wg.Done()
+							ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+							out, err := exec.CommandContext(ctx, path).Output()
+							cancel()
+							if err == nil {
+								rawOut := string(out)
+								if strings.TrimSpace(rawOut) != "" {
+									lines := strings.Split(rawOut, "\n")
+									// Remove trailing empty line caused by Split on final newline
+									if len(lines) > 0 && lines[len(lines)-1] == "" {
+										lines = lines[:len(lines)-1]
 									}
-									extInfo = append(extInfo, "---") // subtle separation token
-									hasExt = true
+									if len(lines) > 0 {
+										results[idx] = extResult{lines: lines, ok: true}
+									}
 								}
 							}
-						}
+						}(i, infoPath)
 					}
+				}
+			}
+			wg.Wait()
+
+			for _, res := range results {
+				if res.ok {
+					for _, line := range res.lines {
+						extInfo = append(extInfo, line)
+					}
+					extInfo = append(extInfo, "---") // subtle separation token
+					hasExt = true
 				}
 			}
 		}
