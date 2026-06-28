@@ -7,6 +7,8 @@ ESC=$(printf '\033')
 BLUE="${ESC}[01;34m"
 RESTORE="${ESC}[0m"
 
+
+
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 0
 fi

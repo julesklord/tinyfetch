@@ -45,8 +45,7 @@ func visualLength(s string) int {
 }
 
 func truncateANSI(s string, limit int) string {
-	raw := stripANSI(s)
-	if visualLength(raw) <= limit {
+	if visualLength(s) <= limit {
 		return s
 	}
 
@@ -138,4 +137,12 @@ func getBar(pct int) string {
 	}
 	sb.WriteString(restore)
 	return sb.String()
+}
+
+func padString(s string, width int) string {
+	rawLen := visualLength(s)
+	if rawLen >= width {
+		return ""
+	}
+	return strings.Repeat(" ", width-rawLen)
 }

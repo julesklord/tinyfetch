@@ -9,10 +9,11 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
-func main() {
+func parseFlags() (bool, bool, bool, string) {
 	noASCII := false
 	minimal := false
 	noFrame := false
@@ -32,7 +33,10 @@ func main() {
 			os.Exit(0)
 		}
 	}
+	return noASCII, minimal, noFrame, outputFmt
+}
 
+func gatherInfo() SystemInfo {
 	hostname, _ := os.Hostname()
 	osName := getOSName()
 	kernel := runCommand("uname", "-r")
@@ -51,51 +55,83 @@ func main() {
 
 	// Scan ./plugins directory
 	if entries, err := os.ReadDir("./plugins"); err == nil {
-		for _, entry := range entries {
+		type pluginResult struct {
+			key string
+			val string
+			ok  bool
+		}
+		results := make([]pluginResult, len(entries))
+		var wg sync.WaitGroup
+
+		for i, entry := range entries {
 			if !entry.IsDir() {
 				infoPath := "./plugins/" + entry.Name()
 				fileInfo, err := entry.Info()
 				if err == nil && (fileInfo.Mode()&0111 != 0) {
-					out := runCommandWithTimeout(2*time.Second, infoPath)
-					if out != "" {
-						lines := strings.Split(out, "\n")
-						pluginOut := strings.TrimSpace(lines[0])
-						if pluginOut != "" {
-							if strings.Contains(pluginOut, ":") {
-								parts := strings.SplitN(pluginOut, ":", 2)
-								k := parts[0]
-								v := strings.TrimSpace(parts[1])
-								pluginKeys = append(pluginKeys, k)
-								pluginVals = append(pluginVals, v)
-							} else {
-								name := entry.Name()
-								if idx := strings.Index(name, "."); idx != -1 {
-									name = name[:idx]
+					wg.Add(1)
+					go func(idx int, path string, name string) {
+						defer wg.Done()
+						out := runCommandWithTimeout(2*time.Second, path)
+						if out != "" {
+							lines := strings.Split(out, "\n")
+							pluginOut := strings.TrimSpace(lines[0])
+							if pluginOut != "" {
+								if strings.Contains(pluginOut, ":") {
+									parts := strings.SplitN(pluginOut, ":", 2)
+									k := parts[0]
+									v := strings.TrimSpace(parts[1])
+									results[idx] = pluginResult{key: k, val: v, ok: true}
+								} else {
+									parsedName := name
+									if dotIdx := strings.Index(parsedName, "."); dotIdx != -1 {
+										parsedName = parsedName[:dotIdx]
+									}
+									if len(parsedName) > 0 {
+										parsedName = strings.ToUpper(parsedName[:1]) + parsedName[1:]
+									}
+									results[idx] = pluginResult{key: parsedName, val: pluginOut, ok: true}
 								}
-								if len(name) > 0 {
-									name = strings.ToUpper(name[:1]) + name[1:]
-								}
-								pluginKeys = append(pluginKeys, name)
-								pluginVals = append(pluginVals, pluginOut)
 							}
 						}
-					}
+					}(i, infoPath, entry.Name())
 				}
+			}
+		}
+		wg.Wait()
+		for _, res := range results {
+			if res.ok {
+				pluginKeys = append(pluginKeys, res.key)
+				pluginVals = append(pluginVals, res.val)
 			}
 		}
 	}
 
+	return SystemInfo{
+		Host:   hostname,
+		OSName: osName,
+		Kernel: kernel,
+		Uptime: uptimeVal,
+		Shell:  shellVal,
+		CPU:    cpuVal,
+		Memory: memRaw,
+		Disk:   diskRaw,
+		Keys:   pluginKeys,
+		Vals:   pluginVals,
+	}
+}
+
+func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj SystemInfo) {
 	// Intercept output format flag early
 	if outputFmt != "" {
 		switch outputFmt {
 		case "json":
-			printJSON(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+			printJSON(infoObj)
 			os.Exit(0)
 		case "xml":
-			printXML(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+			printXML(infoObj)
 			os.Exit(0)
 		case "txt":
-			printTXT(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+			printTXT(infoObj)
 			os.Exit(0)
 		default:
 			fmt.Fprintf(os.Stderr, "Unknown output format: %s\n", outputFmt)
@@ -104,25 +140,25 @@ func main() {
 	}
 
 	// Memory & Progress Bar
-	memVal := memRaw
-	if strings.Contains(memRaw, "%") {
-		pctPart := strings.Split(memRaw, "%")[0]
+	memVal := infoObj.Memory
+	if strings.Contains(infoObj.Memory, "%") {
+		pctPart := strings.Split(infoObj.Memory, "%")[0]
 		if pct, err := strconv.Atoi(strings.TrimSpace(pctPart)); err == nil {
-			memVal = getBar(pct) + " " + memRaw
+			memVal = getBar(pct) + " " + infoObj.Memory
 		}
 	}
 
 	// Disk & Progress Bar
-	diskVal := diskRaw
-	if strings.Contains(diskRaw, "%") {
-		idx := strings.Index(diskRaw, "%")
+	diskVal := infoObj.Disk
+	if strings.Contains(infoObj.Disk, "%") {
+		idx := strings.Index(infoObj.Disk, "%")
 		start := idx
-		for start > 0 && diskRaw[start-1] >= '0' && diskRaw[start-1] <= '9' {
+		for start > 0 && infoObj.Disk[start-1] >= '0' && infoObj.Disk[start-1] <= '9' {
 			start--
 		}
-		if pctStr := diskRaw[start:idx]; pctStr != "" {
+		if pctStr := infoObj.Disk[start:idx]; pctStr != "" {
 			if pct, err := strconv.Atoi(pctStr); err == nil {
-				diskVal = getBar(pct) + " " + diskRaw
+				diskVal = getBar(pct) + " " + infoObj.Disk
 			}
 		}
 	}
@@ -214,18 +250,18 @@ func main() {
 
 	// Setup Info
 	info := []string{
-		lblue + "Host:" + restore + "   " + hostname,
-		lblue + "OS:" + restore + "     " + osName,
-		lblue + "Kernel:" + restore + " " + kernel,
-		lblue + "Uptime:" + restore + " " + uptimeVal,
-		lblue + "Shell:" + restore + "  " + shellVal,
-		lblue + "CPU:" + restore + "    " + cpuVal,
+		lblue + "Host:" + restore + "   " + infoObj.Host,
+		lblue + "OS:" + restore + "     " + infoObj.OSName,
+		lblue + "Kernel:" + restore + " " + infoObj.Kernel,
+		lblue + "Uptime:" + restore + " " + infoObj.Uptime,
+		lblue + "Shell:" + restore + "  " + infoObj.Shell,
+		lblue + "CPU:" + restore + "    " + infoObj.CPU,
 		lblue + "Memory:" + restore + " " + memVal,
 		lblue + "Disk:" + restore + "   " + diskVal,
 	}
 
-	for i := 0; i < len(pluginKeys); i++ {
-		info = append(info, lblue+pluginKeys[i]+":"+restore+" "+pluginVals[i])
+	for i := 0; i < len(infoObj.Keys); i++ {
+		info = append(info, lblue+infoObj.Keys[i]+":"+restore+" "+infoObj.Vals[i])
 	}
 
 	// Scan ./plugins/extended directory
@@ -233,32 +269,50 @@ func main() {
 	hasExt := false
 	if !minimal {
 		if entries, err := os.ReadDir("./plugins/extended"); err == nil {
-			for _, entry := range entries {
+			type extResult struct {
+				lines []string
+				ok    bool
+			}
+			results := make([]extResult, len(entries))
+			var wg sync.WaitGroup
+
+			for i, entry := range entries {
 				if !entry.IsDir() {
 					infoPath := "./plugins/extended/" + entry.Name()
 					fileInfo, err := entry.Info()
 					if err == nil && (fileInfo.Mode()&0111 != 0) {
-						ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-						out, err := exec.CommandContext(ctx, infoPath).Output()
-						cancel()
-						if err == nil {
-							rawOut := string(out)
-							if strings.TrimSpace(rawOut) != "" {
-								lines := strings.Split(rawOut, "\n")
-								// Remove trailing empty line caused by Split on final newline
-								if len(lines) > 0 && lines[len(lines)-1] == "" {
-									lines = lines[:len(lines)-1]
-								}
-								if len(lines) > 0 {
-									for _, line := range lines {
-										extInfo = append(extInfo, line)
+						wg.Add(1)
+						go func(idx int, path string) {
+							defer wg.Done()
+							ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+							out, err := exec.CommandContext(ctx, path).Output()
+							cancel()
+							if err == nil {
+								rawOut := string(out)
+								if strings.TrimSpace(rawOut) != "" {
+									lines := strings.Split(rawOut, "\n")
+									// Remove trailing empty line caused by Split on final newline
+									if len(lines) > 0 && lines[len(lines)-1] == "" {
+										lines = lines[:len(lines)-1]
 									}
-									extInfo = append(extInfo, "---") // subtle separation token
-									hasExt = true
+									if len(lines) > 0 {
+										results[idx] = extResult{lines: lines, ok: true}
+									}
 								}
 							}
-						}
+						}(i, infoPath)
 					}
+				}
+			}
+			wg.Wait()
+
+			for _, res := range results {
+				if res.ok {
+					for _, line := range res.lines {
+						extInfo = append(extInfo, line)
+					}
+					extInfo = append(extInfo, "---") // subtle separation token
+					hasExt = true
 				}
 			}
 		}
@@ -415,12 +469,7 @@ func main() {
 					} else {
 						printLine = truncateANSI(printLine, boxW-2)
 					}
-					visualLen := visualLength(printLine)
-					padding := boxW - 2 - visualLen
-					if padding < 0 {
-						padding = 0
-					}
-					padStr := strings.Repeat(" ", padding)
+					padStr := padString(printLine, boxW-2)
 					fmt.Printf("%s│%s %s%s %s│\n", borderCol, restore, printLine, padStr, borderCol)
 				}
 				fmt.Println(botBorder)
@@ -471,24 +520,14 @@ func main() {
 				if !noASCII && i < len(logo) {
 					logoPrint = logo[i]
 				}
-				lRaw := visualLength(logoPrint)
-				lPadCount := leftW - lRaw
-				lPadding := ""
-				if lPadCount > 0 {
-					lPadding = strings.Repeat(" ", lPadCount)
-				}
+				lPadding := padString(logoPrint, leftW)
 
 				infoPrint := ""
 				if i < len(info) {
 					infoPrint = info[i]
 				}
 				infoPrint = truncateANSI(infoPrint, rightW)
-				rRaw := visualLength(infoPrint)
-				rPadCount := rightW - rRaw
-				rPadding := ""
-				if rPadCount > 0 {
-					rPadding = strings.Repeat(" ", rPadCount)
-				}
+				rPadding := padString(infoPrint, rightW)
 
 				ePrint := ""
 				if hasExt && i < len(extInfo) {
@@ -524,12 +563,7 @@ func main() {
 							rLine = info[i]
 						}
 						rLine = truncateANSI(rLine, rightW)
-						rRaw := visualLength(rLine)
-						rPadCount := rightW - rRaw
-						rPadding := ""
-						if rPadCount > 0 {
-							rPadding = strings.Repeat(" ", rPadCount)
-						}
+						rPadding := padString(rLine, rightW)
 						fmt.Printf("%s│%s %s%s %s│\n", borderCol, restore, rLine, rPadding, borderCol)
 					}
 					fmt.Println(botLine)
@@ -543,24 +577,14 @@ func main() {
 						if i < len(logo) {
 							logoPrint = logo[i]
 						}
-						lRaw := visualLength(logoPrint)
-						lPadCount := leftW - lRaw
-						lPadding := ""
-						if lPadCount > 0 {
-							lPadding = strings.Repeat(" ", lPadCount)
-						}
+						lPadding := padString(logoPrint, leftW)
 
 						infoPrint := ""
 						if i < len(info) {
 							infoPrint = info[i]
 						}
 						infoPrint = truncateANSI(infoPrint, rightW)
-						rRaw := visualLength(infoPrint)
-						rPadCount := rightW - rRaw
-						rPadding := ""
-						if rPadCount > 0 {
-							rPadding = strings.Repeat(" ", rPadCount)
-						}
+						rPadding := padString(infoPrint, rightW)
 
 						fmt.Printf("%s│%s %s%s %s│%s %s%s %s│\n",
 							borderCol, restore, logoPrint, lPadding,
@@ -581,12 +605,7 @@ func main() {
 							rLine = info[i]
 						}
 						rLine = truncateANSI(rLine, rightW)
-						rRaw := visualLength(rLine)
-						rPadCount := rightW - rRaw
-						rPadding := ""
-						if rPadCount > 0 {
-							rPadding = strings.Repeat(" ", rPadCount)
-						}
+						rPadding := padString(rLine, rightW)
 
 						eLine := ""
 						if i < len(extInfo) {
@@ -597,12 +616,7 @@ func main() {
 						} else {
 							eLine = truncateANSI(eLine, extW)
 						}
-						eRaw := visualLength(eLine)
-						ePadCount := extW - eRaw
-						ePadding := ""
-						if ePadCount > 0 {
-							ePadding = strings.Repeat(" ", ePadCount)
-						}
+						ePadding := padString(eLine, extW)
 
 						fmt.Printf("%s│%s %s%s %s│%s %s%s %s│\n",
 							borderCol, restore, rLine, rPadding,
@@ -620,24 +634,14 @@ func main() {
 						if i < len(logo) {
 							logoPrint = logo[i]
 						}
-						lRaw := visualLength(logoPrint)
-						lPadCount := leftW - lRaw
-						lPadding := ""
-						if lPadCount > 0 {
-							lPadding = strings.Repeat(" ", lPadCount)
-						}
+						lPadding := padString(logoPrint, leftW)
 
 						infoPrint := ""
 						if i < len(info) {
 							infoPrint = info[i]
 						}
 						infoPrint = truncateANSI(infoPrint, rightW)
-						rRaw := visualLength(infoPrint)
-						rPadCount := rightW - rRaw
-						rPadding := ""
-						if rPadCount > 0 {
-							rPadding = strings.Repeat(" ", rPadCount)
-						}
+						rPadding := padString(infoPrint, rightW)
 
 						ePrint := ""
 						if i < len(extInfo) {
@@ -648,12 +652,7 @@ func main() {
 						} else {
 							ePrint = truncateANSI(ePrint, extW)
 						}
-						eRaw := visualLength(ePrint)
-						ePadCount := extW - eRaw
-						ePadding := ""
-						if ePadCount > 0 {
-							ePadding = strings.Repeat(" ", ePadCount)
-						}
+						ePadding := padString(ePrint, extW)
 
 						fmt.Printf("%s│%s %s%s %s│%s %s%s %s│%s %s%s %s│\n",
 							borderCol, restore, logoPrint, lPadding,
@@ -666,4 +665,10 @@ func main() {
 			}
 		}
 	}
+}
+
+func main() {
+	noASCII, minimal, noFrame, outputFmt := parseFlags()
+	infoObj := gatherInfo()
+	renderOutput(noASCII, minimal, noFrame, outputFmt, infoObj)
 }
