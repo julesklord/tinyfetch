@@ -87,15 +87,28 @@ func main() {
 
 	// Intercept output format flag early
 	if outputFmt != "" {
+		info := SystemInfo{
+			Host:   hostname,
+			OSName: osName,
+			Kernel: kernel,
+			Uptime: uptimeVal,
+			Shell:  shellVal,
+			CPU:    cpuVal,
+			Memory: memRaw,
+			Disk:   diskRaw,
+			Keys:   pluginKeys,
+			Vals:   pluginVals,
+		}
+
 		switch outputFmt {
 		case "json":
-			printJSON(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+			printJSON(info)
 			os.Exit(0)
 		case "xml":
-			printXML(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+			printXML(info)
 			os.Exit(0)
 		case "txt":
-			printTXT(hostname, osName, kernel, uptimeVal, shellVal, cpuVal, memRaw, diskRaw, pluginKeys, pluginVals)
+			printTXT(info)
 			os.Exit(0)
 		default:
 			fmt.Fprintf(os.Stderr, "Unknown output format: %s\n", outputFmt)
