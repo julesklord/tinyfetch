@@ -111,6 +111,8 @@ func TestPrintJSON(t *testing.T) {
   "swap": "myswap",
   "disk": "mydisk",
   "processes": "myprocesses",
+  "cpu_usage": "mycpuusage",
+  "cpu_temp": "mycputemp",
   "plugins": {
     "key1": {
       "value": "val1"
@@ -135,6 +137,8 @@ func TestPrintJSON(t *testing.T) {
 		Swap:      "myswap",
 		Disk:      "mydisk",
 		Processes: "myprocesses",
+		CPUUsage:  "mycpuusage",
+		CPUTemp:   "mycputemp",
 		Plugins: []PluginInfo{
 			{Key: "key1", Val: "val1"},
 			{Key: "key2", Val: "val2"},
@@ -163,7 +167,9 @@ func TestPrintJSON_NoPlugins(t *testing.T) {
   "memory": "mymem",
   "swap": "myswap",
   "disk": "mydisk",
-  "processes": "myprocesses"
+  "processes": "myprocesses",
+  "cpu_usage": "mycpuusage",
+  "cpu_temp": "mycputemp"
 }
 `
 	info := SystemInfo{
@@ -180,6 +186,8 @@ func TestPrintJSON_NoPlugins(t *testing.T) {
 		Swap:      "myswap",
 		Disk:      "mydisk",
 		Processes: "myprocesses",
+		CPUUsage:  "mycpuusage",
+		CPUTemp:   "mycputemp",
 		Plugins:   []PluginInfo{},
 	}
 	output := captureStdout(func() {
@@ -206,6 +214,8 @@ func TestPrintXML(t *testing.T) {
   <swap>myswap</swap>
   <disk>mydisk</disk>
   <processes>myprocesses</processes>
+  <cpu_usage>mycpuusage</cpu_usage>
+  <cpu_temp>mycputemp</cpu_temp>
   <plugins>
     <key1>
       <value>val1</value>
@@ -230,6 +240,8 @@ func TestPrintXML(t *testing.T) {
 		Swap:      "myswap",
 		Disk:      "mydisk",
 		Processes: "myprocesses",
+		CPUUsage:  "mycpuusage",
+		CPUTemp:   "mycputemp",
 		Plugins: []PluginInfo{
 			{Key: "key1", Val: "val1"},
 			{Key: "key 2", Val: "val2"},
@@ -259,6 +271,8 @@ func TestPrintXML_NoPlugins(t *testing.T) {
   <swap>myswap</swap>
   <disk>mydisk</disk>
   <processes>myprocesses</processes>
+  <cpu_usage>mycpuusage</cpu_usage>
+  <cpu_temp>mycputemp</cpu_temp>
 </arbol>
 `
 	info := SystemInfo{
@@ -275,6 +289,8 @@ func TestPrintXML_NoPlugins(t *testing.T) {
 		Swap:      "myswap",
 		Disk:      "mydisk",
 		Processes: "myprocesses",
+		CPUUsage:  "mycpuusage",
+		CPUTemp:   "mycputemp",
 		Plugins:   []PluginInfo{},
 	}
 	output := captureStdout(func() {
@@ -300,6 +316,8 @@ Memory: mymem
 Swap: myswap
 Disk: mydisk
 Processes: myprocesses
+CPU Usage: mycpuusage
+CPU Temp: mycputemp
 key1: val1
 key 2: val2
 `
@@ -317,6 +335,8 @@ key 2: val2
 		Swap:      "myswap",
 		Disk:      "mydisk",
 		Processes: "myprocesses",
+		CPUUsage:  "mycpuusage",
+		CPUTemp:   "mycputemp",
 		Plugins: []PluginInfo{
 			{Key: "key1", Val: "val1"},
 			{Key: "key 2", Val: "val2"},

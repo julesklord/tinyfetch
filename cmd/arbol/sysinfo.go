@@ -337,3 +337,105 @@ func getProcesses() string {
 	}
 	return "n/a"
 }
+
+func getCPUTicks() (user, nice, system, idle, iowait, irq, softirq int64, err error) {
+	file, err := os.Open("/proc/stat")
+	if err != nil {
+		return 0, 0, 0, 0, 0, 0, 0, err
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	if scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Fields(line)
+		if len(fields) >= 8 && fields[0] == "cpu" {
+			user, _ = strconv.ParseInt(fields[1], 10, 64)
+			nice, _ = strconv.ParseInt(fields[2], 10, 64)
+			system, _ = strconv.ParseInt(fields[3], 10, 64)
+			idle, _ = strconv.ParseInt(fields[4], 10, 64)
+			iowait, _ = strconv.ParseInt(fields[5], 10, 64)
+			irq, _ = strconv.ParseInt(fields[6], 10, 64)
+			softirq, _ = strconv.ParseInt(fields[7], 10, 64)
+			return
+		}
+	}
+	return 0, 0, 0, 0, 0, 0, 0, fmt.Errorf("invalid format")
+}
+
+func getCPUUsage() string {
+	if runtime.GOOS == "linux" {
+		u1, n1, s1, id1, io1, ir1, so1, err1 := getCPUTicks()
+		if err1 != nil {
+			return "n/a"
+		}
+		time.Sleep(50 * time.Millisecond)
+		u2, n2, s2, id2, io2, ir2, so2, err2 := getCPUTicks()
+		if err2 != nil {
+			return "n/a"
+		}
+
+		idle1 := id1 + io1
+		idle2 := id2 + io2
+
+		nonIdle1 := u1 + n1 + s1 + ir1 + so1
+		nonIdle2 := u2 + n2 + s2 + ir2 + so2
+
+		total1 := idle1 + nonIdle1
+		total2 := idle2 + nonIdle2
+
+		totalDiff := total2 - total1
+		idleDiff := idle2 - idle1
+
+		if totalDiff > 0 {
+			pct := (totalDiff - idleDiff) * 100 / totalDiff
+			return fmt.Sprintf("%d%%", pct)
+		}
+	} else if runtime.GOOS == "darwin" {
+		out := runCommand("bash", "-c", "ps -A -o %cpu | awk '{s+=$1} END {print s}'")
+		if out != "" {
+			if val, err := strconv.ParseFloat(out, 64); err == nil {
+				cores := runtime.NumCPU()
+				if cores > 0 {
+					pct := int(val / float64(cores))
+					if pct > 100 {
+						pct = 100
+					}
+					return fmt.Sprintf("%d%%", pct)
+				}
+			}
+		}
+	}
+	return "n/a"
+}
+
+func getCPUTemp() string {
+	if runtime.GOOS == "linux" {
+		for _, zone := range []string{"thermal_zone0", "thermal_zone1", "thermal_zone2"} {
+			data, err := os.ReadFile("/sys/class/thermal/" + zone + "/temp")
+			if err == nil {
+				tempStr := strings.TrimSpace(string(data))
+				if tempVal, err := strconv.ParseFloat(tempStr, 64); err == nil {
+					return fmt.Sprintf("%.1f°C", tempVal/1000.0)
+				}
+			}
+		}
+		for i := 0; i < 5; i++ {
+			for j := 1; j <= 3; j++ {
+				path := fmt.Sprintf("/sys/class/hwmon/hwmon%d/temp%d_input", i, j)
+				data, err := os.ReadFile(path)
+				if err == nil {
+					tempStr := strings.TrimSpace(string(data))
+					if tempVal, err := strconv.ParseFloat(tempStr, 64); err == nil {
+						return fmt.Sprintf("%.1f°C", tempVal/1000.0)
+					}
+				}
+			}
+		}
+	} else if runtime.GOOS == "darwin" {
+		out := runCommand("sysctl", "-n", "machdep.xcpm.cpu_thermal_level")
+		if out != "" {
+			return out + " (level)"
+		}
+	}
+	return "n/a"
+}

@@ -24,13 +24,18 @@ BLUE="${ESC}[01;34m"
 RESTORE="${ESC}[0m"
 
 if [ "$total" -gt 0 ]; then
-  echo "Docker: ${BLUE} ${RESTORE} $running running ($total total)"
-  echo "Status: Active (daemon running)"
+  echo "Docker: ${BLUE}🐳${RESTORE} $running running ($total total)"
+  echo "Status: Active"
   echo "Running: $running containers"
   echo "Total: $total containers"
-  echo "Images: $images local images"
-  echo "Volumes: $volumes local volumes"
+  echo "Images: $images images"
+  echo "Volumes: $volumes volumes"
+  
+  if [ "$running" -gt 0 ]; then
+    # List top 3 running containers with their status
+    docker ps --format "  → {{.Names}} ({{.Status}})" 2>/dev/null | head -n 3
+  fi
 else
-  echo "Docker: ${BLUE} ${RESTORE} idle"
+  echo "Docker: ${BLUE}🐳${RESTORE} idle"
   echo "Status: Idle"
 fi

@@ -137,6 +137,9 @@ func gatherInfo(pluginsDir string) SystemInfo {
 		}
 	}
 
+	cpuUsageVal := getCPUUsage()
+	cpuTempVal := getCPUTemp()
+
 	return SystemInfo{
 		Host:      hostname,
 		OSName:    osName,
@@ -151,6 +154,8 @@ func gatherInfo(pluginsDir string) SystemInfo {
 		Swap:      swapRaw,
 		Disk:      diskRaw,
 		Processes: procVal,
+		CPUUsage:  cpuUsageVal,
+		CPUTemp:   cpuTempVal,
 		Plugins:   plugins,
 	}
 }
@@ -439,7 +444,14 @@ func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj Syst
 			swapVal = getBar(pct) + " " + infoObj.Swap
 		}
 	}
-
+	// CPU Usage & Progress Bar
+	cpuUsageVal := infoObj.CPUUsage
+	if strings.Contains(infoObj.CPUUsage, "%") {
+		pctPart := strings.Split(infoObj.CPUUsage, "%")[0]
+		if pct, err := strconv.Atoi(strings.TrimSpace(pctPart)); err == nil {
+			cpuUsageVal = getBar(pct) + " " + infoObj.CPUUsage
+		}
+	}
 	// Disk & Progress Bar
 	diskVal := infoObj.Disk
 	if strings.Contains(infoObj.Disk, "%") {
@@ -520,6 +532,10 @@ func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj Syst
 
 	// Resources category
 	resourcesNode := &TreeNode{Text: lcyan + bold + "📊 resources" + reset}
+	resourcesNode.Children = append(resourcesNode.Children, &TreeNode{Text: lblue + "📈 cpu usage: " + reset + cpuUsageVal})
+	if infoObj.CPUTemp != "n/a" {
+		resourcesNode.Children = append(resourcesNode.Children, &TreeNode{Text: lblue + "🌡️ cpu temp: " + reset + italic + infoObj.CPUTemp + reset})
+	}
 	resourcesNode.Children = append(resourcesNode.Children, &TreeNode{Text: lblue + "💾 memory: " + reset + memVal})
 	resourcesNode.Children = append(resourcesNode.Children, &TreeNode{Text: lblue + "🔄 swap: " + reset + swapVal})
 	resourcesNode.Children = append(resourcesNode.Children, &TreeNode{Text: lblue + "💿 disk: " + reset + diskVal})

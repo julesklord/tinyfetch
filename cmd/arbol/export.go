@@ -25,6 +25,8 @@ type SystemInfo struct {
 	Swap      string
 	Disk      string
 	Processes string
+	CPUUsage  string
+	CPUTemp   string
 	Plugins   []PluginInfo
 }
 
@@ -42,7 +44,9 @@ func printJSON(info SystemInfo) {
 	fmt.Printf("  \"memory\": %q,\n", info.Memory)
 	fmt.Printf("  \"swap\": %q,\n", info.Swap)
 	fmt.Printf("  \"disk\": %q,\n", info.Disk)
-	fmt.Printf("  \"processes\": %q", info.Processes)
+	fmt.Printf("  \"processes\": %q,\n", info.Processes)
+	fmt.Printf("  \"cpu_usage\": %q,\n", info.CPUUsage)
+	fmt.Printf("  \"cpu_temp\": %q", info.CPUTemp)
 
 	if len(info.Plugins) > 0 {
 		fmt.Printf(",\n  \"plugins\": {\n")
@@ -115,6 +119,8 @@ func printXML(info SystemInfo) {
 	fmt.Printf("  <swap>%s</swap>\n", escapeXML(info.Swap))
 	fmt.Printf("  <disk>%s</disk>\n", escapeXML(info.Disk))
 	fmt.Printf("  <processes>%s</processes>\n", escapeXML(info.Processes))
+	fmt.Printf("  <cpu_usage>%s</cpu_usage>\n", escapeXML(info.CPUUsage))
+	fmt.Printf("  <cpu_temp>%s</cpu_temp>\n", escapeXML(info.CPUTemp))
 
 	if len(info.Plugins) > 0 {
 		fmt.Printf("  <plugins>\n")
@@ -156,6 +162,8 @@ func printTXT(info SystemInfo) {
 	fmt.Printf("Swap: %s\n", info.Swap)
 	fmt.Printf("Disk: %s\n", info.Disk)
 	fmt.Printf("Processes: %s\n", info.Processes)
+	fmt.Printf("CPU Usage: %s\n", info.CPUUsage)
+	fmt.Printf("CPU Temp: %s\n", info.CPUTemp)
 	for _, plug := range info.Plugins {
 		fmt.Printf("%s: %s\n", plug.Key, stripANSI(plug.Val))
 		for _, det := range plug.Details {

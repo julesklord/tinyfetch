@@ -40,7 +40,6 @@ fi
 # Flatpak
 if command -v flatpak >/dev/null 2>&1; then
   flatpak_count=$(flatpak list 2>/dev/null | wc -l | xargs)
-  # Remove header line if flatpak output contains it
   if [ "$flatpak_count" -gt 0 ]; then
     flatpak_count=$((flatpak_count - 1))
   fi
@@ -56,6 +55,24 @@ total=$((native_count + aur_count + brew_count + flatpak_count + snap_count))
 if [ "$total" -eq 0 ]; then
   exit 0
 fi
+
+# Visual distribution bar (10 blocks)
+native_bar=0
+aur_bar=0
+other_bar=0
+if [ "$total" -gt 0 ]; then
+  native_bar=$(( native_count * 10 / total ))
+  aur_bar=$(( aur_count * 10 / total ))
+  other_bar=$(( (brew_count + flatpak_count + snap_count) * 10 / total ))
+fi
+
+bar=""
+for ((i=0; i<native_bar; i++)); do bar="${bar}█"; done
+for ((i=0; i<aur_bar; i++)); do bar="${bar}▒"; done
+for ((i=0; i<other_bar; i++)); do bar="${bar}░"; done
+while [ ${#bar} -lt 10 ]; do
+  bar="${bar}░"
+done
 
 echo "Packages: $total total"
 if [ "$native_count" -gt 0 ]; then
@@ -73,3 +90,5 @@ fi
 if [ "$snap_count" -gt 0 ]; then
   echo "Snap: $snap_count"
 fi
+
+echo "Ratio: [${bar:0:10}] (native/aur/others)"
