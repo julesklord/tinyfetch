@@ -6,6 +6,10 @@
 [![Built With](https://img.shields.io/badge/Built%20With-Go-brightgreen.svg)](go.mod)
 [![Version](https://img.shields.io/badge/version-0.5.0-orange.svg)](VERSION)
 
+## Demo
+
+![arbol demo](docs/demo.gif)
+
 ## Overview
 
 **arbol** is a dependency-free CLI status utility designed to quickly fetch and display essential system information in your terminal. It is implemented as a high-performance compiled Go binary with an extensible plugin system.
