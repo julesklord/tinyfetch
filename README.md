@@ -1,15 +1,16 @@
 # arbol
 
-> Minimal fastfetch-style status tool — a tiny, focused utility to show system info in a compact, beautiful layout.
+> Terminal system info reporter — a beautiful, plugin-driven utility that shows system stats as a live tree in your terminal.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Built With](https://img.shields.io/badge/Built%20With-Go-brightgreen.svg)](go.mod)
+[![Version](https://img.shields.io/badge/version-0.5.0-orange.svg)](VERSION)
 
 ## Overview
 
-**arbol** is a tiny, dependency-free CLI status utility designed to quickly fetch and display essential system information in your terminal. It is implemented as a high-performance compiled Go binary.
+**arbol** is a dependency-free CLI status utility designed to quickly fetch and display essential system information in your terminal. It is implemented as a high-performance compiled Go binary with an extensible plugin system.
 
-It presents a side-by-side representation of the host OS logo as a TrueColor banner and core system resource metrics structured as a dynamic tree.
+It presents a side-by-side representation of the host OS logo as a TrueColor banner and core system resource metrics (Host, OS, Kernel, Uptime, Shell, CPU, GPU, DE/WM, Terminal, CPU Usage, CPU Temperature, Memory, Swap, Disk, and Process Count) structured as a dynamic tree. Below the tree, extended plugins render a third diagnostic pane with rich charts and graphs.
 
 ## Installation
 
@@ -48,52 +49,106 @@ arbol
 | `--minimal` | | Skip extended plugins and display a single info card. |
 | `--noframe` | | Omit the box borders and print layout side-by-side using spaces. |
 | `--output=FORMAT` | | Serialize system stats and simple plugins into structured output: `json`, `xml`, or `txt`. |
-| `--logo=simple,banner` | | Toggle between simple logo styling and banner styling (default is banner). |
+| `--logo=MODE` | | Control the ASCII logo style: `simple` (default glyph block art) or `banner` (solid filled block art). |
+| `--plugins-dir=PATH` | | Override plugin discovery directory (also via `ARBOL_PLUGINS_DIR` env var). |
 
-## Extensibility & Plugins
+## What It Shows
 
-**arbol** is fully extensible via custom plugins. It scans the `./plugins` directory for executable scripts or binaries (written in Bash, Python, Go, Node, etc.) and appends their output dynamically to the dashboard.
+### 🌿 Tree Layout (Default)
 
-It supports two types of plugins:
-1. **Simple Plugins** (located in `./plugins/`): Status elements that append nested rows/details to the plugins branch.
-2. **Extended Plugins** (located in `./plugins/extended/`): Multi-line, complex dashboards that render side-by-side in a separate diagnostics section.
+```
+● hostname @ DistroName
+├── ⚙ specs
+│   ├── 📦 kernel: 6.10.x-cachyos
+│   ├── ⏱ uptime: 10h 24m
+│   ├── 💻 shell: /bin/fish
+│   ├── 🧠 cpu: Intel Xeon E5-2630 @ 2.20GHz
+│   ├── 🎮 gpu: NVIDIA GTX 1060 6GB
+│   ├── 🖥 de/wm: mango
+│   └── 📟 terminal: zed
+├── 📊 resources
+│   ├── 📈 cpu usage: ██░░░░░░░░ 21%
+│   ├── 🌡️ cpu temp: 51.0°C
+│   ├── 💾 memory: ███░░░░░░░ 36% (39940MB)
+│   ├── 🔄 swap: ░░░░░░░░░░ 0% (2MB / 39939MB)
+│   ├── 💿 disk: █████░░░░░ /dev/sda2 (56%)
+│   └── ⚡ processes: 497
+└── 🔌 plugins
+    ├── docker: 🐳 idle
+    ├── network: 󰖩 connected
+    │   ├── Interface: enp8s0
+    │   ├── Download (Rx): 📥 3.04 GB
+    │   └── Upload (Tx): 📤 586 MB
+    ├── packages: 2034 total
+    │   └── Ratio: [█████████░] (native/aur/others)
+    └── weather: ☀️ +40°C
+        └── Temp Scale: ❄️ ━━━━━━━━━━━█━ 🔥
+```
 
-### Creating a Simple Plugin
+### 🔍 Diagnostics Pane (Extended Plugins)
 
-1. Create an executable file inside the `./plugins/` directory:
-   ```bash
-   touch plugins/my-plugin.sh
-   chmod +x plugins/my-plugin.sh
-   ```
-2. Your script should output a summary line, followed by detailed stats on subsequent lines (e.g. `Network: Connected` on line 1, then detailed stats like local IP).
-3. If a plugin needs to exit early or is not applicable, it should print nothing and exit with code `0`. Any plugin that produces empty output will be cleanly omitted from the dashboard.
+A third column provides rich diagnostic charts:
 
-### Creating an Extended Plugin
+- **Git Commit Graph** — last 5 commits shown with `git log --oneline --graph`
+- **System Dashboard** — load averages and top memory consumers
+- **Weather Forecast** — multi-day ASCII weather art from `wttr.in`
 
-1. Create an executable file inside the `./plugins/extended/` directory:
-   ```bash
-   touch plugins/extended/my-dashboard.sh
-   chmod +x plugins/extended/my-dashboard.sh
-   ```
-2. Your script can output multiple lines. **arbol** will dynamically calculate widths and align the borders of the third pane symmetrically using rune-count calculations.
+## Plugins
 
-### Included Plugins
+Plugins are executable scripts or binaries placed in `./plugins/`. They output one or multiple lines; the first line becomes the tree node header and subsequent lines become nested sub-branches.
 
-The repository contains several useful out-of-the-box plugins under [plugins/](file:///home/julesklord/Proyectos/repos/arbol/plugins):
-- **Battery** (`battery.sh`): Displays current battery percentage and charge status (supports Linux & macOS).
-- **Docker** (`docker.sh`): Shows active containers and daemon status.
-- **Git** (`git.sh`): Reports current branch, dirty status, and counters for staged/modified/untracked files with Nerd Fonts.
-- **Network** (`ip.sh`): Shows local and external IP addresses (using `icanhazip.com` with a 1s connection timeout).
-- **Kubernetes** (`k8s.sh`): Reports active kubectl context and namespace.
-- **Packages** (`packages.sh`): Lists installed packages (supports `pacman`, `dpkg`, `rpm`, `flatpak`, `brew`, `snap`).
-- **Weather** (`weather.sh`): Fetches temperature and sky status.
-- **Media Player** (`media.sh`): Shows currently playing song or media status.
+### Built-in Plugins
 
-#### Extended Plugins ([plugins/extended/](file:///home/julesklord/Proyectos/repos/arbol/plugins/extended)):
-- **Git Commit Graph** (`git_graph.sh`): Displays a beautiful local branch history tree visualization.
-- **System Dashboard** (`sys_dashboard.sh`): Displays load averages and top memory-consuming processes.
-- **Weather Forecast** (`weather_forecast.sh`): Displays a multi-line weather forecast from `wttr.in`.
+| Plugin | Description |
+| :--- | :--- |
+| `battery.sh` | Capacity %, status, and ASCII health bar |
+| `docker.sh` | Container counts, image/volume totals, and list of active containers |
+| `git.sh` | Branch status, staged/modified/untracked counts, last commit, and sync state |
+| `ip.sh` | Local IP, public IP, DNS, gateway, interface, and Rx/Tx traffic totals |
+| `k8s.sh` | Kubernetes context, namespace, API server, and config path |
+| `media.sh` | Now Playing track, artist, album, and media player |
+| `packages.sh` | Cross-platform package counts (pacman, AUR, dpkg, rpm, brew, flatpak, snap) with ratio bar |
+| `weather.sh` | Location, condition, temperature, and a dynamic thermometer scale graph |
+
+### Extended Plugins (Diagnostics)
+
+| Plugin | Description |
+| :--- | :--- |
+| `git_graph.sh` | ASCII git log graph of recent commits |
+| `sys_dashboard.sh` | System load average and top memory processes |
+| `weather_forecast.sh` | Full ASCII weather art from wttr.in |
+
+### Custom Plugins
+
+Any executable script placed in `./plugins/` is automatically discovered at runtime. No registration required:
+
+```bash
+#!/usr/bin/env bash
+echo "My Plugin: Hello!"
+echo "Detail line one"
+echo "Detail line two"
+```
+
+See the [Development Guide](docs/wiki/development.md) for the full plugin authoring specification.
+
+## Structured Output
+
+Export system info to structured formats with `--output`:
+
+```bash
+arbol --output=json
+arbol --output=xml
+arbol --output=txt
+```
+
+JSON output includes `cpu_usage` and `cpu_temp` fields alongside all core system metrics.
+
+## Environment Variables
+
+| Variable | Description |
+| :--- | :--- |
+| `ARBOL_PLUGINS_DIR` | Override the default plugin discovery directory |
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE).

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.5.0 - Project Renaming, Rich Graphical Plugins & CPU Resources
+- Renamed the entire project from `tinyfetch` to `arbol` across modules, file paths, variables, configuration files, and documentation.
+- Integrated a real-time CPU usage monitor with a progress bar and CPU temperature detection in default resources.
+- Added a horizontal thermometer scale graph (`Temp Scale`) representing weather relative temperature to `weather.sh`.
+- Added dynamic, multi-format package manager detection (dpkg, rpm, pacman, brew, flatpak, snap) and a visual distribution ratio bar (`Ratio`) to `packages.sh`.
+- Added network traffic counter (Download Rx / Upload Tx in GB/MB/KB) using active interface detection to `ip.sh`.
+- Added list of top 3 active containers and uptime stats to `docker.sh`.
+
 ## 0.4.0 - Concurrent Plugins, Code Modularization & Security Enhancements
 - Refactored monolithic `main()` function in Go implementation into modular helper functions (`parseFlags()`, `gatherInfo()`, and `renderOutput()`).
 - Consolidated multiple parameters of export printing functions under a unified `SystemInfo` struct.
