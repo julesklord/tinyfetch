@@ -112,8 +112,12 @@ func TestPrintJSON(t *testing.T) {
   "disk": "mydisk",
   "processes": "myprocesses",
   "plugins": {
-    "key1": "val1",
-    "key2": "val2"
+    "key1": {
+      "value": "val1"
+    },
+    "key2": {
+      "value": "val2"
+    }
   }
 }
 `
@@ -131,8 +135,10 @@ func TestPrintJSON(t *testing.T) {
 		Swap:      "myswap",
 		Disk:      "mydisk",
 		Processes: "myprocesses",
-		Keys:      []string{"key1", "key2"},
-		Vals:      []string{"val1", "val2"},
+		Plugins: []PluginInfo{
+			{Key: "key1", Val: "val1"},
+			{Key: "key2", Val: "val2"},
+		},
 	}
 	output := captureStdout(func() {
 		printJSON(info)
@@ -174,8 +180,7 @@ func TestPrintJSON_NoPlugins(t *testing.T) {
 		Swap:      "myswap",
 		Disk:      "mydisk",
 		Processes: "myprocesses",
-		Keys:      []string{},
-		Vals:      []string{},
+		Plugins:   []PluginInfo{},
 	}
 	output := captureStdout(func() {
 		printJSON(info)
@@ -202,8 +207,12 @@ func TestPrintXML(t *testing.T) {
   <disk>mydisk</disk>
   <processes>myprocesses</processes>
   <plugins>
-    <key1>val1</key1>
-    <key_2>val2</key_2>
+    <key1>
+      <value>val1</value>
+    </key1>
+    <key_2>
+      <value>val2</value>
+    </key_2>
   </plugins>
 </tinyfetch>
 `
@@ -221,8 +230,10 @@ func TestPrintXML(t *testing.T) {
 		Swap:      "myswap",
 		Disk:      "mydisk",
 		Processes: "myprocesses",
-		Keys:      []string{"key1", "key 2"},
-		Vals:      []string{"val1", "val2"},
+		Plugins: []PluginInfo{
+			{Key: "key1", Val: "val1"},
+			{Key: "key 2", Val: "val2"},
+		},
 	}
 	output := captureStdout(func() {
 		printXML(info)
@@ -264,8 +275,7 @@ func TestPrintXML_NoPlugins(t *testing.T) {
 		Swap:      "myswap",
 		Disk:      "mydisk",
 		Processes: "myprocesses",
-		Keys:      []string{},
-		Vals:      []string{},
+		Plugins:   []PluginInfo{},
 	}
 	output := captureStdout(func() {
 		printXML(info)
@@ -307,8 +317,10 @@ key 2: val2
 		Swap:      "myswap",
 		Disk:      "mydisk",
 		Processes: "myprocesses",
-		Keys:      []string{"key1", "key 2"},
-		Vals:      []string{"val1", "val2"},
+		Plugins: []PluginInfo{
+			{Key: "key1", Val: "val1"},
+			{Key: "key 2", Val: "val2"},
+		},
 	}
 	output := captureStdout(func() {
 		printTXT(info)

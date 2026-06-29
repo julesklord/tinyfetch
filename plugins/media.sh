@@ -13,10 +13,14 @@ status=$(playerctl status 2>/dev/null || echo "")
 if [ "$status" = "Playing" ] || [ "$status" = "Paused" ]; then
   artist=$(playerctl metadata artist 2>/dev/null || echo "")
   title=$(playerctl metadata title 2>/dev/null || echo "")
+  album=$(playerctl metadata album 2>/dev/null || echo "")
+  player=$(playerctl -l 2>/dev/null | head -n 1 || echo "unknown")
   
   # Clean up empty values
   artist=$(echo "$artist" | xargs)
   title=$(echo "$title" | xargs)
+  album=$(echo "$album" | xargs)
+  player=$(echo "$player" | xargs)
   
   # Build description
   track=""
@@ -32,10 +36,19 @@ if [ "$status" = "Playing" ] || [ "$status" = "Paused" ]; then
     YELLOW="${ESC}[01;33m"
     RESTORE="${ESC}[0m"
     
+    icon="󰎆"
+    color="$YELLOW"
     if [ "$status" = "Playing" ]; then
-      echo "Music: ${GREEN} ${RESTORE} $track"
-    else
-      echo "Music: ${YELLOW}󰎆 ${RESTORE} $track (Paused)"
+      icon=""
+      color="$GREEN"
     fi
+    
+    echo "Music: ${color}${icon}${RESTORE} $status"
+    echo "Status: $status"
+    echo "Track: $track"
+    if [ -n "$album" ]; then
+      echo "Album: $album"
+    fi
+    echo "Player: $player"
   fi
 fi

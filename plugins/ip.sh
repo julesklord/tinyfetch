@@ -24,22 +24,30 @@ fi
 # Get Public IP (with 1s timeout to prevent hanging)
 public_ip=$(curl -s --connect-timeout 1 https://icanhazip.com 2>/dev/null | xargs || echo "")
 
+# Get DNS Server
+dns_server=""
+if [ -f /etc/resolv.conf ]; then
+  dns_server=$(grep -E '^nameserver' /etc/resolv.conf | awk '{print $2}' | head -n 2 | xargs || echo "")
+fi
+
+# Get default gateway
+gateway=""
+if command -v ip >/dev/null 2>&1; then
+  gateway=$(ip route show 2>/dev/null | grep default | awk '{print $3}' | head -n 1 || echo "")
+fi
+
 # Build output
-output=""
-if [ -n "$local_ip" ]; then
-  output="Local: $local_ip"
+status="disconnected"
+if [ -n "$local_ip" ] || [ -n "$public_ip" ]; then
+  status="connected"
 fi
 
-if [ -n "$public_ip" ]; then
-  if [ -n "$output" ]; then
-    output="$output | "
-  fi
-  output="${output}Public: $public_ip"
+echo "Network: ${BLUE}󰖩${RESTORE} $status"
+echo "Local IP: ${local_ip:-n/a}"
+echo "Public IP: ${public_ip:-n/a}"
+if [ -n "$dns_server" ]; then
+  echo "DNS: $dns_server"
 fi
-
-# Exit if no IP found
-if [ -z "$output" ]; then
-  exit 0
+if [ -n "$gateway" ]; then
+  echo "Gateway: $gateway"
 fi
-
-echo "Network: ${BLUE}󰖩${RESTORE} $output"

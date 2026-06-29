@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Weather plugin for tinyfetch (queries wttr.in with 1s timeout)
+# Weather plugin for tinyfetch (queries wttr.in with 2s timeout)
 set -euo pipefail
 
-# Try to fetch weather in format: icon + temp (e.g. "☀️ +20°C")
-# We use curl with a 1 second timeout to ensure it doesn't block tinyfetch
-if ! weather=$(curl -s --connect-timeout 1 "https://wttr.in/?format=%c%t" 2>/dev/null); then
+# Try to fetch weather with details: temp/emoji, location, condition
+# We use curl with a 2 second timeout to ensure it doesn't block tinyfetch
+if ! weather_out=$(curl -s --connect-timeout 2 "https://wttr.in/?format=%c%t\nLocation:+%l\nCondition:+%C" 2>/dev/null); then
   exit 0
 fi
 
-# Clean up output
-weather=$(echo "$weather" | xargs)
-
-if [ -n "$weather" ] && [[ "$weather" != *"Error"* ]] && [[ "$weather" != *"Unknown"* ]]; then
-  echo "Weather: $weather"
+# Clean up and print output if valid
+if [ -n "$weather_out" ] && [[ "$weather_out" != *"Error"* ]] && [[ "$weather_out" != *"Unknown"* ]]; then
+  # Split output into lines and print
+  echo "Weather: $(echo "$weather_out" | head -n 1 | xargs)"
+  echo "$weather_out" | tail -n +2
 fi

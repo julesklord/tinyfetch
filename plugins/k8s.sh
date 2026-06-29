@@ -8,7 +8,8 @@ if ! command -v kubectl >/dev/null 2>&1; then
 fi
 
 # Check if kubeconfig file exists in default locations
-if [ ! -f "${KUBECONFIG:-$HOME/.kube/config}" ] && [ ! -d "$HOME/.kube" ]; then
+kubeconfig_path="${KUBECONFIG:-$HOME/.kube/config}"
+if [ ! -f "$kubeconfig_path" ] && [ ! -d "$HOME/.kube" ]; then
   exit 0
 fi
 
@@ -24,9 +25,16 @@ fi
 namespace=$(kubectl config view --minify --output 'jsonpath={..namespace}' 2>/dev/null || echo "default")
 [ -z "$namespace" ] && namespace="default"
 
+# Get API Server
+server=$(kubectl config view -o jsonpath='{.clusters[?(@.name=="'"$context"'")].cluster.server}' 2>/dev/null || echo "n/a")
+
 # ANSI colors
 ESC=$(printf '\033')
 CYAN="${ESC}[01;36m"
 RESTORE="${ESC}[0m"
 
-echo "K8s: ${CYAN}󱏚 ${RESTORE} $context ($namespace)"
+echo "K8s: ${CYAN}󱏚 ${RESTORE} $context"
+echo "Context: $context"
+echo "Namespace: $namespace"
+echo "API Server: $server"
+echo "Config Path: $kubeconfig_path"

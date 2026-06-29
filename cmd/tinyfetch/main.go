@@ -64,15 +64,15 @@ func gatherInfo(pluginsDir string) SystemInfo {
 	diskRaw := getDisk()
 	procVal := getProcesses()
 
-	var pluginKeys []string
-	var pluginVals []string
+	var plugins []PluginInfo
 
 	// Scan plugins directory
 	if entries, err := os.ReadDir(pluginsDir); err == nil {
 		type pluginResult struct {
-			key string
-			val string
-			ok  bool
+			key     string
+			val     string
+			details []string
+			ok      bool
 		}
 		results := make([]pluginResult, len(entries))
 		var wg sync.WaitGroup
@@ -88,13 +88,20 @@ func gatherInfo(pluginsDir string) SystemInfo {
 						out := runCommandWithTimeout(2*time.Second, path)
 						if out != "" {
 							lines := strings.Split(out, "\n")
-							pluginOut := strings.TrimSpace(lines[0])
-							if pluginOut != "" {
-								if strings.Contains(pluginOut, ":") {
-									parts := strings.SplitN(pluginOut, ":", 2)
-									k := parts[0]
-									v := strings.TrimSpace(parts[1])
-									results[idx] = pluginResult{key: k, val: v, ok: true}
+							var cleanLines []string
+							for _, l := range lines {
+								trimmed := strings.TrimSpace(l)
+								if trimmed != "" {
+									cleanLines = append(cleanLines, trimmed)
+								}
+							}
+							if len(cleanLines) > 0 {
+								firstLine := cleanLines[0]
+								var k, v string
+								if strings.Contains(firstLine, ":") {
+									parts := strings.SplitN(firstLine, ":", 2)
+									k = parts[0]
+									v = strings.TrimSpace(parts[1])
 								} else {
 									parsedName := name
 									if dotIdx := strings.Index(parsedName, "."); dotIdx != -1 {
@@ -103,7 +110,14 @@ func gatherInfo(pluginsDir string) SystemInfo {
 									if len(parsedName) > 0 {
 										parsedName = strings.ToUpper(parsedName[:1]) + parsedName[1:]
 									}
-									results[idx] = pluginResult{key: parsedName, val: pluginOut, ok: true}
+									k = parsedName
+									v = firstLine
+								}
+								results[idx] = pluginResult{
+									key:     k,
+									val:     v,
+									details: cleanLines[1:],
+									ok:      true,
 								}
 							}
 						}
@@ -114,8 +128,11 @@ func gatherInfo(pluginsDir string) SystemInfo {
 		wg.Wait()
 		for _, res := range results {
 			if res.ok {
-				pluginKeys = append(pluginKeys, res.key)
-				pluginVals = append(pluginVals, res.val)
+				plugins = append(plugins, PluginInfo{
+					Key:     res.key,
+					Val:     res.val,
+					Details: res.details,
+				})
 			}
 		}
 	}
@@ -134,8 +151,7 @@ func gatherInfo(pluginsDir string) SystemInfo {
 		Swap:      swapRaw,
 		Disk:      diskRaw,
 		Processes: procVal,
-		Keys:      pluginKeys,
-		Vals:      pluginVals,
+		Plugins:   plugins,
 	}
 }
 
@@ -511,12 +527,16 @@ func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj Syst
 	root.Children = append(root.Children, resourcesNode)
 
 	// Simple Plugins category
-	if len(infoObj.Keys) > 0 {
+	if len(infoObj.Plugins) > 0 {
 		pluginsNode := &TreeNode{Text: lcyan + bold + "🔌 plugins" + reset}
-		for i := 0; i < len(infoObj.Keys); i++ {
-			key := strings.ToLower(infoObj.Keys[i])
-			val := infoObj.Vals[i]
-			pluginsNode.Children = append(pluginsNode.Children, &TreeNode{Text: lblue + key + ": " + reset + val})
+		for _, plug := range infoObj.Plugins {
+			key := strings.ToLower(plug.Key)
+			val := plug.Val
+			plugNode := &TreeNode{Text: lblue + key + ": " + reset + val}
+			for _, det := range plug.Details {
+				plugNode.Children = append(plugNode.Children, &TreeNode{Text: det})
+			}
+			pluginsNode.Children = append(pluginsNode.Children, plugNode)
 		}
 		root.Children = append(root.Children, pluginsNode)
 	}

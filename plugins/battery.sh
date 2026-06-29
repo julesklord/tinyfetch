@@ -9,9 +9,12 @@ YELLOW="${ESC}[01;33m"
 RED="${ESC}[01;31m"
 BLUE="${ESC}[01;34m"
 RESTORE="${ESC}[0m"
+DIM="${ESC}[2m"
 
 capacity=""
 status=""
+tech=""
+health=""
 os_type=$(uname -s)
 
 if [ "$os_type" = "Darwin" ]; then
@@ -24,6 +27,8 @@ if [ "$os_type" = "Darwin" ]; then
       else
         status="Charging"
       fi
+      # macOS details
+      health=$(system_profiler SPPowerDataType 2>/dev/null | grep -i "Condition:" | awk '{print $2}' || echo "")
     fi
   fi
 else
@@ -32,6 +37,8 @@ else
     if [ -d "$bat" ]; then
       capacity=$(cat "$bat/capacity" 2>/dev/null || echo "")
       status=$(cat "$bat/status" 2>/dev/null || echo "")
+      tech=$(cat "$bat/technology" 2>/dev/null || echo "")
+      health=$(cat "$bat/status" 2>/dev/null || echo "")
       break
     fi
   done
@@ -57,4 +64,18 @@ if [ "$status" = "Charging" ]; then
   color="$BLUE"
 fi
 
+# Draw progress bar
+filled=$((capacity / 10))
+empty=$((10 - filled))
+bar=""
+for ((i=0; i<filled; i++)); do bar="${bar}█"; done
+for ((i=0; i<empty; i++)); do bar="${bar}░"; done
+
+# Output structure
 echo "Battery: ${color}${icon} ${capacity}%${RESTORE} (${status})"
+echo "Status: ${status}"
+echo "Capacity: ${capacity}%"
+echo "Health: ${color}[${bar}]${RESTORE} (${health:-Good})"
+if [ -n "$tech" ]; then
+  echo "Technology: ${tech}"
+fi

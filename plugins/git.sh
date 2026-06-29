@@ -15,7 +15,6 @@ GREEN="${ESC}[01;32m"
 YELLOW="${ESC}[01;33m"
 RED="${ESC}[01;31m"
 
-
 # Get branch name
 branch=$(git branch --show-current 2>/dev/null || git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "detached")
 
@@ -56,14 +55,22 @@ fi
 output="${PURPLE} ${branch}${RESTORE}"
 
 # Ahead / Behind status
+sync_status="Up-to-date"
 if [ "$ahead" -gt 0 ] || [ "$behind" -gt 0 ]; then
   output="${output} ("
+  sync_status=""
   if [ "$ahead" -gt 0 ]; then
     output="${output}${GREEN}⇡${ahead}${RESTORE}"
+    sync_status="Ahead by ${ahead}"
   fi
   if [ "$behind" -gt 0 ]; then
     [ "$ahead" -gt 0 ] && output="${output} "
     output="${output}${RED}⇣${behind}${RESTORE}"
+    if [ -n "$sync_status" ]; then
+      sync_status="${sync_status}, behind by ${behind}"
+    else
+      sync_status="Behind by ${behind}"
+    fi
   fi
   output="${output})"
 fi
@@ -88,4 +95,15 @@ else
   output="${output} ${GREEN}✔${RESTORE}"
 fi
 
+# Fetch last commit details
+last_commit=$(git log -1 --format="%s" 2>/dev/null || echo "n/a")
+author=$(git log -1 --format="%an" 2>/dev/null || echo "n/a")
+
 echo "Git: $output"
+echo "Branch: $branch"
+echo "Staged files: $staged"
+echo "Modified files: $modified"
+echo "Untracked files: $untracked"
+echo "Sync status: $sync_status"
+echo "Last commit: $last_commit"
+echo "Author: $author"
