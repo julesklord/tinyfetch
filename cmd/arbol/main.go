@@ -87,10 +87,19 @@ func gatherInfo(pluginsDir string) SystemInfo {
 						defer wg.Done()
 						out := runCommandWithTimeout(2*time.Second, path)
 						if out != "" {
-							lines := strings.Split(out, "\n")
 							var cleanLines []string
-							for _, l := range lines {
-								trimmed := strings.TrimSpace(l)
+							remaining := out
+							for len(remaining) > 0 {
+								idx := strings.IndexByte(remaining, '\n')
+								var line string
+								if idx == -1 {
+									line = remaining
+									remaining = ""
+								} else {
+									line = remaining[:idx]
+									remaining = remaining[idx+1:]
+								}
+								trimmed := strings.TrimSpace(line)
 								if trimmed != "" {
 									cleanLines = append(cleanLines, trimmed)
 								}
