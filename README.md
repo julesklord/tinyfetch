@@ -152,6 +152,7 @@ JSON output includes `cpu_usage` and `cpu_temp` fields alongside all core system
 | Variable | Description |
 | :--- | :--- |
 | `ARBOL_PLUGINS_DIR` | Override the default plugin discovery directory |
+| `ARBOL_ENABLE_WEATHER` | Set to `1` to enable location-based weather fetching (disabled by default for privacy) |
 
 ## License
 
