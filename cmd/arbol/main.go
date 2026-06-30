@@ -19,10 +19,9 @@ type TreeNode struct {
 	Children []*TreeNode
 }
 
-func parseFlags() (bool, bool, bool, string, string) {
+func parseFlags() (bool, bool, string, string) {
 	noASCII := false
 	minimal := false
-	noFrame := false
 	outputFmt := ""
 	logoMode := "banner" // default is banner
 
@@ -32,7 +31,7 @@ func parseFlags() (bool, bool, bool, string, string) {
 		} else if arg == "--minimal" {
 			minimal = true
 		} else if arg == "--noframe" {
-			noFrame = true
+			// ignore --noframe flag to avoid breaking compatibility
 		} else if strings.HasPrefix(arg, "--output=") {
 			outputFmt = strings.TrimPrefix(arg, "--output=")
 		} else if strings.HasPrefix(arg, "--logo=") {
@@ -42,7 +41,7 @@ func parseFlags() (bool, bool, bool, string, string) {
 			os.Exit(0)
 		}
 	}
-	return noASCII, minimal, noFrame, outputFmt, logoMode
+	return noASCII, minimal, outputFmt, logoMode
 }
 
 func gatherInfo(pluginsDir string) SystemInfo {
@@ -408,7 +407,7 @@ func drawBannerLogo(osName string) {
 	fmt.Println(gradientString(bot, 255, 94, 98, 0, 242, 254))
 }
 
-func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj SystemInfo, extPluginsDir, logoMode string) {
+func renderOutput(noASCII, minimal bool, outputFmt string, infoObj SystemInfo, extPluginsDir, logoMode string) {
 	// Intercept output format flag early
 	if outputFmt != "" {
 		switch outputFmt {
@@ -641,9 +640,9 @@ func getPluginsDir() string {
 }
 
 func main() {
-	noASCII, minimal, noFrame, outputFmt, logoMode := parseFlags()
+	noASCII, minimal, outputFmt, logoMode := parseFlags()
 	pluginsDir := getPluginsDir()
 	extPluginsDir := filepath.Join(pluginsDir, "extended")
 	infoObj := gatherInfo(pluginsDir)
-	renderOutput(noASCII, minimal, noFrame, outputFmt, infoObj, extPluginsDir, logoMode)
+	renderOutput(noASCII, minimal, outputFmt, infoObj, extPluginsDir, logoMode)
 }
