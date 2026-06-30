@@ -139,10 +139,3 @@ func getBar(pct int) string {
 	return sb.String()
 }
 
-func padString(s string, width int) string {
-	rawLen := visualLength(s)
-	if rawLen >= width {
-		return ""
-	}
-	return strings.Repeat(" ", width-rawLen)
-}
