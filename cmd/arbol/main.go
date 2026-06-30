@@ -40,6 +40,10 @@ func parseFlags() (bool, bool, bool, string, string) {
 		} else if arg == "--help" || arg == "-h" {
 			fmt.Printf("Usage: %s [--no-ascii] [--minimal] [--noframe] [--logo=simple|banner] [--output=json|xml|txt]\n", os.Args[0])
 			os.Exit(0)
+		} else {
+			fmt.Fprintf(os.Stderr, "Unknown flag: %s\n", arg)
+			fmt.Printf("Usage: %s [--no-ascii] [--minimal] [--noframe] [--logo=simple|banner] [--output=json|xml|txt]\n", os.Args[0])
+			os.Exit(1)
 		}
 	}
 	return noASCII, minimal, noFrame, outputFmt, logoMode
