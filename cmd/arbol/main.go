@@ -46,6 +46,12 @@ func parseFlags() (bool, bool, bool, string, string) {
 }
 
 func gatherInfo(pluginsDir string) SystemInfo {
+	// ⚡ Bolt: Run getCPUUsage asynchronously to parallelize its 50ms sleep
+	cpuUsageChan := make(chan string, 1)
+	go func() {
+		cpuUsageChan <- getCPUUsage()
+	}()
+
 	hostname, _ := os.Hostname()
 	osName := getOSName()
 	kernel := runCommand("uname", "-r")
@@ -137,8 +143,8 @@ func gatherInfo(pluginsDir string) SystemInfo {
 		}
 	}
 
-	cpuUsageVal := getCPUUsage()
 	cpuTempVal := getCPUTemp()
+	cpuUsageVal := <-cpuUsageChan
 
 	return SystemInfo{
 		Host:      hostname,
