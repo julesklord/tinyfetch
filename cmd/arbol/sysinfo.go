@@ -216,7 +216,7 @@ func getMemory() string {
 }
 
 func getDisk() string {
-	out := runCommand("df", "-Ph", "/")
+	out := runCommandWithTimeout(2*time.Second, "df", "-Ph", "/")
 	if out != "" {
 		lines := strings.Split(out, "\n")
 		if len(lines) >= 2 {
@@ -231,7 +231,7 @@ func getDisk() string {
 
 func getGPU() string {
 	if runtime.GOOS == "darwin" {
-		out := runCommand("bash", "-c", "system_profiler SPDisplaysDataType | grep 'Chipset Model'")
+		out := runCommandWithTimeout(2*time.Second, "bash", "-c", "system_profiler SPDisplaysDataType | grep 'Chipset Model'")
 		if out != "" {
 			parts := strings.Split(out, ":")
 			if len(parts) >= 2 {
@@ -239,7 +239,7 @@ func getGPU() string {
 			}
 		}
 	} else if runtime.GOOS == "linux" {
-		out := runCommand("bash", "-c", "lspci | grep -i 'vga\\|3d\\|display'")
+		out := runCommandWithTimeout(2*time.Second, "bash", "-c", "lspci | grep -i 'vga\\|3d\\|display'")
 		if out != "" {
 			lines := strings.Split(out, "\n")
 			line := lines[0]
