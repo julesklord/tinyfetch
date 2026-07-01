@@ -37,7 +37,6 @@ checksum:
 
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
-  disable: false
 
 changelog:
   sort: asc
