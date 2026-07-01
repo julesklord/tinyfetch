@@ -1,3 +1,5 @@
+version: 2
+
 project_name: arbol
 
 before:
@@ -17,8 +19,6 @@ builds:
     goarch:
       - amd64
       - arm64
-    goarm:
-      - "7"
     ignore:
       - goos: darwin
         goarch: arm
@@ -50,9 +50,5 @@ changelog:
       - Merge branch
 
 release:
-  github:
-    owner: julesklord
-    name: arbol
   draft: true
   prerelease: auto
-  name_template: "v{{ .Version }}"
