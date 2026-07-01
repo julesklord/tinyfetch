@@ -19,7 +19,7 @@ type TreeNode struct {
 	Children []*TreeNode
 }
 
-func parseFlags() (bool, bool, bool, string, string, string, string, string, bool, int, string) {
+func parseFlags() (bool, bool, bool, string, string, string, string, string, bool, int, string, bool, int) {
 	noASCII := false
 	minimal := false
 	noFrame := false
@@ -31,6 +31,8 @@ func parseFlags() (bool, bool, bool, string, string, string, string, string, boo
 	sparklineEnabled := false
 	sparklineWidth := 20
 	sparklineStyleName := ""
+	liveEnabled := false
+	liveInterval := 1000 // ms
 
 	for _, arg := range os.Args[1:] {
 		if arg == "--no-ascii" {
@@ -61,13 +63,24 @@ func parseFlags() (bool, bool, bool, string, string, string, string, string, boo
 			}
 		} else if strings.HasPrefix(arg, "--sparkline-style=") {
 			sparklineStyleName = strings.TrimPrefix(arg, "--sparkline-style=")
+		} else if strings.HasPrefix(arg, "--live") {
+			liveEnabled = true
+			if arg == "--live" {
+				liveInterval = 1000
+			} else if strings.HasPrefix(arg, "--live=") {
+				val := strings.TrimPrefix(arg, "--live=")
+				if ms, err := strconv.Atoi(val); err == nil && ms > 0 {
+					liveInterval = ms
+				}
+			}
 		} else if arg == "--help" || arg == "-h" {
-			fmt.Printf("Usage: %s [--no-ascii] [--minimal] [--noframe] [--logo=simple|banner] [--output=json|xml|txt] [--theme=NAME] [--bar-style=STYLE] [--tree-style=STYLE] [--sparkline[=WIDTH]] [--sparkline-style=STYLE]\n", os.Args[0])
+			fmt.Printf("Usage: %s [--no-ascii] [--minimal] [--noframe] [--logo=simple|banner] [--output=json|xml|txt] [--theme=NAME] [--bar-style=STYLE] [--tree-style=STYLE] [--sparkline[=WIDTH]] [--sparkline-style=STYLE] [--live[=MS]]\n", os.Args[0])
 			fmt.Println("  Themes: default, catppuccin, catppuccin-mocha, catppuccin-latte, dracula, nord, tokyonight, gruvbox, everforest, monokai, rose-pine, solarized")
 			fmt.Println("  Bar styles: block, braille, gradient, dot")
 			fmt.Println("  Tree styles: default, rounded, heavy, double, ascii, dotted")
 			fmt.Println("  Sparkline styles: block, braille, dots")
 			fmt.Println("  --sparkline[=WIDTH] enables inline sparklines (default width: 20)")
+			fmt.Println("  --live[=MS] enables live updating mode (default interval: 1000ms)")
 			os.Exit(0)
 		} else {
 			fmt.Fprintf(os.Stderr, "Unknown flag: %s\n", arg)
@@ -75,7 +88,7 @@ func parseFlags() (bool, bool, bool, string, string, string, string, string, boo
 			os.Exit(1)
 		}
 	}
-	return noASCII, minimal, noFrame, outputFmt, logoMode, themeName, barStyleName, treeStyleName, sparklineEnabled, sparklineWidth, sparklineStyleName
+	return noASCII, minimal, noFrame, outputFmt, logoMode, themeName, barStyleName, treeStyleName, sparklineEnabled, sparklineWidth, sparklineStyleName, liveEnabled, liveInterval
 }
 
 func parseBarStyle(name string) BarStyle {
@@ -743,6 +756,34 @@ func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj Syst
 	printTree(root, []string{}, true)
 }
 
+func runLiveMode(noASCII, minimal, noFrame bool, outputFmt, logoMode string, intervalMs int) {
+	interval := time.Duration(intervalMs) * time.Millisecond
+
+	// Initialize sparklines for live mode
+	initSparklines(20, interval/2)
+	time.Sleep(100 * time.Millisecond)
+
+	pluginsDir := getPluginsDir()
+	extPluginsDir := filepath.Join(pluginsDir, "extended")
+
+	// Clear screen and hide cursor
+	fmt.Print("\033[2J\033[H\033[?25l")
+	defer fmt.Print("\033[?25h") // Show cursor on exit
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			infoObj := gatherInfo(pluginsDir)
+			// Move cursor to top-left
+			fmt.Print("\033[H")
+			renderOutput(noASCII, minimal, noFrame, outputFmt, infoObj, extPluginsDir, logoMode, true)
+		}
+	}
+}
+
 func getPluginsDir() string {
 	if env := os.Getenv("ARBOL_PLUGINS_DIR"); env != "" {
 		return env
@@ -759,7 +800,7 @@ func getPluginsDir() string {
 }
 
 func main() {
-	noASCII, minimal, noFrame, outputFmt, logoMode, themeName, barStyleName, treeStyleName, sparklineEnabled, sparklineWidth, sparklineStyleName := parseFlags()
+	noASCII, minimal, noFrame, outputFmt, logoMode, themeName, barStyleName, treeStyleName, sparklineEnabled, sparklineWidth, sparklineStyleName, liveEnabled, liveInterval := parseFlags()
 
 	if themeName != "" {
 		if !SetTheme(themeName) {
@@ -787,6 +828,11 @@ func main() {
 		initSparklines(sparklineWidth, 500*time.Millisecond)
 		// Give sparklines a moment to collect initial data
 		time.Sleep(100 * time.Millisecond)
+	}
+
+	if liveEnabled {
+		runLiveMode(noASCII, minimal, noFrame, outputFmt, logoMode, liveInterval)
+		return
 	}
 
 	pluginsDir := getPluginsDir()
