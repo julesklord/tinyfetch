@@ -49,7 +49,6 @@ Platform-specific metric readers:
 Visual layout utilities:
 - `getBar(pct)` — renders a 10-block progress bar: `███░░░░░░░`
 - `stripANSI(s)` — removes ANSI escape sequences
-- `padString(s, width)` — pads strings to a fixed rune-counted width
 
 ### `cmd/arbol/export.go`
 Structured export printers for `--output`:

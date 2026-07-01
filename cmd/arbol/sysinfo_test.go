@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"testing"
 	"time"
 )
@@ -41,18 +40,6 @@ func TestRunCommandWithTimeout(t *testing.T) {
 	outTimeout := runCommandWithTimeout(10*time.Millisecond, "sleep", "1")
 	if outTimeout != "" {
 		t.Errorf("Expected empty string on timeout, got '%s'", outTimeout)
-	}
-}
-
-func TestGetTerminalWidthFallback(t *testing.T) {
-	// Mess up PATH to force tput to fail
-	oldPath := os.Getenv("PATH")
-	os.Setenv("PATH", "")
-	defer os.Setenv("PATH", oldPath)
-
-	width := getTerminalWidth()
-	if width != 80 {
-		t.Errorf("Expected fallback width 80, got %d", width)
 	}
 }
 

@@ -19,10 +19,9 @@ type TreeNode struct {
 	Children []*TreeNode
 }
 
-func parseFlags() (bool, bool, bool, string, string, string, string, string, bool, int, string, bool, int) {
+func parseFlags() (bool, bool, string, string, string, string, string, bool, int, string, bool, int) {
 	noASCII := false
 	minimal := false
-	noFrame := false
 	outputFmt := ""
 	logoMode := "banner" // default is banner
 	themeName := ""
@@ -40,7 +39,7 @@ func parseFlags() (bool, bool, bool, string, string, string, string, string, boo
 		} else if arg == "--minimal" {
 			minimal = true
 		} else if arg == "--noframe" {
-			noFrame = true
+			// no-op: kept for backwards compatibility
 		} else if strings.HasPrefix(arg, "--output=") {
 			outputFmt = strings.TrimPrefix(arg, "--output=")
 		} else if strings.HasPrefix(arg, "--logo=") {
@@ -88,7 +87,7 @@ func parseFlags() (bool, bool, bool, string, string, string, string, string, boo
 			os.Exit(1)
 		}
 	}
-	return noASCII, minimal, noFrame, outputFmt, logoMode, themeName, barStyleName, treeStyleName, sparklineEnabled, sparklineWidth, sparklineStyleName, liveEnabled, liveInterval
+	return noASCII, minimal, outputFmt, logoMode, themeName, barStyleName, treeStyleName, sparklineEnabled, sparklineWidth, sparklineStyleName, liveEnabled, liveInterval
 }
 
 func parseBarStyle(name string) BarStyle {
@@ -519,7 +518,7 @@ func drawBannerLogo(osName string) {
 	fmt.Println(gradientString(bot, start[0], start[1], start[2], end[0], end[1], end[2]))
 }
 
-func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj SystemInfo, extPluginsDir, logoMode string, sparklineEnabled bool) {
+func renderOutput(noASCII, minimal bool, outputFmt string, infoObj SystemInfo, extPluginsDir, logoMode string, sparklineEnabled bool) {
 	// Intercept output format flag early
 	if outputFmt != "" {
 		switch outputFmt {
@@ -764,7 +763,7 @@ func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj Syst
 	printTree(root, []string{}, true)
 }
 
-func runLiveMode(noASCII, minimal, noFrame bool, outputFmt, logoMode string, intervalMs int) {
+func runLiveMode(noASCII, minimal bool, outputFmt, logoMode string, intervalMs int) {
 	interval := time.Duration(intervalMs) * time.Millisecond
 
 	// Initialize sparklines for live mode
@@ -787,7 +786,7 @@ func runLiveMode(noASCII, minimal, noFrame bool, outputFmt, logoMode string, int
 			infoObj := gatherInfo(pluginsDir)
 			// Move cursor to top-left
 			fmt.Print("\033[H")
-			renderOutput(noASCII, minimal, noFrame, outputFmt, infoObj, extPluginsDir, logoMode, true)
+			renderOutput(noASCII, minimal, outputFmt, infoObj, extPluginsDir, logoMode, true)
 		}
 	}
 }
@@ -808,7 +807,7 @@ func getPluginsDir() string {
 }
 
 func main() {
-	noASCII, minimal, noFrame, outputFmt, logoMode, themeName, barStyleName, treeStyleName, sparklineEnabled, sparklineWidth, sparklineStyleName, liveEnabled, liveInterval := parseFlags()
+	noASCII, minimal, outputFmt, logoMode, themeName, barStyleName, treeStyleName, sparklineEnabled, sparklineWidth, sparklineStyleName, liveEnabled, liveInterval := parseFlags()
 
 	if themeName != "" {
 		if !SetTheme(themeName) {
@@ -839,12 +838,12 @@ func main() {
 	}
 
 	if liveEnabled {
-		runLiveMode(noASCII, minimal, noFrame, outputFmt, logoMode, liveInterval)
+		runLiveMode(noASCII, minimal, outputFmt, logoMode, liveInterval)
 		return
 	}
 
 	pluginsDir := getPluginsDir()
 	extPluginsDir := filepath.Join(pluginsDir, "extended")
 	infoObj := gatherInfo(pluginsDir)
-	renderOutput(noASCII, minimal, noFrame, outputFmt, infoObj, extPluginsDir, logoMode, sparklineEnabled)
+	renderOutput(noASCII, minimal, outputFmt, infoObj, extPluginsDir, logoMode, sparklineEnabled)
 }

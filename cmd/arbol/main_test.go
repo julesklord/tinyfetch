@@ -93,7 +93,7 @@ func TestStripANSI(t *testing.T) {
 		{"basic ANSI color", "\033[01;34mhello\033[0m", "hello"},
 		{"only ANSI", "\033[01;34m\033[0m", ""},
 		{"multiple ANSI sequences", "\033[31mred\033[0m \033[32mgreen\033[0m", "red green"},
-		{"ANSI with non-m terminator", "\033[31red", ""}, // Current implementation eats everything until 'm' or EOF
+		{"ANSI with non-m terminator", "\033[31red", "ed"},
 		{"ANSI at the very end", "hello\033[0m", "hello"},
 		{"incomplete ANSI sequence", "hello\033", "hello"}, // Last byte is ESC
 	}

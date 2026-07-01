@@ -30,16 +30,6 @@ func runCommandWithTimeout(timeout time.Duration, name string, arg ...string) st
 	return strings.TrimSpace(string(out))
 }
 
-func getTerminalWidth() int {
-	out := runCommand("tput", "cols")
-	if out != "" {
-		if w, err := strconv.Atoi(out); err == nil {
-			return w
-		}
-	}
-	return 80
-}
-
 func getOSName() string {
 	if runtime.GOOS == "darwin" {
 		name := runCommand("sw_vers", "-productName")
@@ -216,7 +206,7 @@ func getMemory() string {
 }
 
 func getDisk() string {
-	out := runCommand("df", "-Ph", "/")
+	out := runCommandWithTimeout(2*time.Second, "df", "-Ph", "/")
 	if out != "" {
 		lines := strings.Split(out, "\n")
 		if len(lines) >= 2 {
@@ -231,7 +221,7 @@ func getDisk() string {
 
 func getGPU() string {
 	if runtime.GOOS == "darwin" {
-		out := runCommand("bash", "-c", "system_profiler SPDisplaysDataType | grep 'Chipset Model'")
+		out := runCommandWithTimeout(2*time.Second, "bash", "-c", "system_profiler SPDisplaysDataType | grep 'Chipset Model'")
 		if out != "" {
 			parts := strings.Split(out, ":")
 			if len(parts) >= 2 {
@@ -239,7 +229,7 @@ func getGPU() string {
 			}
 		}
 	} else if runtime.GOOS == "linux" {
-		out := runCommand("bash", "-c", "lspci | grep -i 'vga\\|3d\\|display'")
+		out := runCommandWithTimeout(2*time.Second, "bash", "-c", "lspci | grep -i 'vga\\|3d\\|display'")
 		if out != "" {
 			lines := strings.Split(out, "\n")
 			line := lines[0]
@@ -312,28 +302,6 @@ func getSwap() string {
 		if out != "" {
 			return out
 		}
-	}
-	return "n/a"
-}
-
-func getProcesses() string {
-	if runtime.GOOS == "linux" {
-		files, err := os.ReadDir("/proc")
-		if err == nil {
-			count := 0
-			for _, f := range files {
-				if f.IsDir() {
-					if _, err := strconv.Atoi(f.Name()); err == nil {
-						count++
-					}
-				}
-			}
-			return strconv.Itoa(count)
-		}
-	}
-	out := runCommand("bash", "-c", "ps -ax | wc -l")
-	if out != "" {
-		return strings.TrimSpace(out)
 	}
 	return "n/a"
 }
