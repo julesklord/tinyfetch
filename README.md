@@ -7,6 +7,7 @@
 [![Version](https://img.shields.io/badge/version-0.6.0-orange.svg)](VERSION)
 [![Release](https://img.shields.io/github/v/release/julesklord/arbol?color=blue&label=release)](https://github.com/julesklord/arbol/releases/latest)
 [![Release](https://github.com/julesklord/arbol/actions/workflows/release.yml/badge.svg?event=release)](https://github.com/julesklord/arbol/actions/workflows/release.yml)
+[![CI](https://github.com/julesklord/arbol/actions/workflows/ci.yml/badge.svg)](https://github.com/julesklord/arbol/actions/workflows/ci.yml)
 
 ## Demo
 
@@ -20,6 +21,16 @@ It presents a side-by-side representation of the host OS logo as a TrueColor ban
 
 ## Installation
 
+### From Releases (Recommended)
+
+Download the latest binary for your platform from the [releases page](https://github.com/julesklord/arbol/releases):
+
+```bash
+# Example for Linux x86_64
+curl -sL https://github.com/julesklord/arbol/releases/download/v0.6.0/arbol_0.6.0_linux_amd64.tar.gz | tar xz
+sudo install arbol /usr/local/bin/
+```
+
 ### From Source
 
 Ensure Go 1.20+ is installed:
@@ -32,7 +43,7 @@ make build
 
 ### System-Wide Installation
 
-Install the compiled binary into `/usr/local/bin`:
+Install the compiled binary and assets into `/usr/local`:
 
 ```bash
 sudo make install
@@ -50,7 +61,8 @@ arbol
 
 | Option | Short Alias | Description |
 | :--- | :--- | :--- |
-| `--help` | `-h` | Display version and usage instructions. |
+| `--help` | `-h` | Display usage instructions. |
+| `--version` | `-v` | Print the installed version and exit. |
 | `--no-ascii` | | Omit the system ASCII logo. |
 | `--minimal` | | Skip extended plugins and display a single info card. |
 | `--noframe` | | Omit the box borders and print layout side-by-side using spaces. |

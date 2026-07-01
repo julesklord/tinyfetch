@@ -7,9 +7,9 @@ This file serves as persistent memory for long sessions with AI agents. Don't fo
 ## Current Status
 
 - **Version**: 0.6.0
-- **Current Milestone**: 0.5.0 — Graphical plugin metrics, CPU resources, and project renaming complete.
+- **Current Milestone**: 0.6.0 — Code health, security hardening, perf optimization, and release automation complete.
 - **Blockers**: None.
-- **Next Step**: Polish structured export parity (cpu_usage/cpu_temp in all export formats), consider `--config` support for layout preferences.
+- **Next Step**: Consider `--config` support for layout preferences, add more theme options.
 
 ## Architecture Quick Reference
 
@@ -31,3 +31,4 @@ This file serves as persistent memory for long sessions with AI agents. Don't fo
 - 2026-06-28: Designed flat solid-block TrueColor ASCII art banners for CachyOS, Ubuntu, Arch, Debian, Fedora, openSUSE, Manjaro.
 - 2026-06-28: Renamed entire project from `tinyfetch` to `arbol` (module path, binary, env vars, XML tag, docs, Makefile, tests).
 - 2026-06-28: Added CPU usage (dual-sample /proc/stat), CPU temperature (/sys/class/thermal), network Rx/Tx counters, packages ratio bar, and weather thermometer scale. Version bumped to 0.5.0.
+- 2026-07-01: Applied 7 PRs (#18, #19, #20, #21, #26, #27, #30). Removed dead code (noFrame, getTerminalWidth, padString). Hardened ANSI stripping with CSI state machine. Added 2s timeout to disk/GPU commands. Replaced /proc iteration with syscall.Sysinfo for getProcesses (~83x faster). Changed default bar style to Block. Added goreleaser release workflow with cross-platform binaries. Added --version flag. Version bumped to 0.6.0.

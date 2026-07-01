@@ -13,12 +13,12 @@ Welcome. This wiki follows the Jules Dev Standard and FMG Development Bible.
 - [Hygiene & Git Workflow](file:///mnt/DEV/Proyectos/repos/arbol/docs/wiki/hygiene.md)
 - [Roadmap](file:///mnt/DEV/Proyectos/repos/arbol/docs/wiki/roadmap.md)
 
-## What's New in 0.5.0
+## What's New in 0.6.0
 
-- **CPU Usage** — real-time load % with progress bar (`📈 cpu usage: ██░░░░░░░░ 10%`)
-- **CPU Temperature** — live sensor reading from `/sys/class/thermal` (`🌡️ cpu temp: 51.0°C`)
-- **Network Traffic** — Rx/Tx totals in GB/MB for the active interface (`📥 3.04 GB / 📤 586 MB`)
-- **Package Ratio Bar** — visual distribution bar across package managers (`[█████████░]`)
-- **Weather Thermometer Scale** — horizontal temperature graph (`❄️ ━━━━━━━━━━━█━ 🔥`)
-- **Docker Container List** — lists top 3 running containers with their uptime
-- **Project renamed** from `tinyfetch` to `arbol`
+- **Code Health** — removed unused code: `noFrame` parameter, `getTerminalWidth`, `padString`, and stale `DIM` variable
+- **Security Hardening** — ANSI escape stripping now handles all CSI terminators (0x40-0x7E) instead of only `m`
+- **DoS Prevention** — `getDisk` and `getGPU` commands have a 2-second timeout to prevent hanging on unresponsive hardware
+- **Performance Boost** — `getProcesses` on Linux uses `syscall.Sysinfo` (~83x faster, from 92µs to 1µs)
+- **Default Bar Style** — changed from Braille to Block for better cross-terminal readability
+- **Release Automation** — goreleaser workflow builds cross-platform binaries (linux/darwin, amd64/arm64)
+- **`--version` flag** — `arbol --version` now reports the installed version

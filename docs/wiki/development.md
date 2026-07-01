@@ -32,22 +32,28 @@ This document guides developers on local setup, running tests, and creating cust
 
 | Target | Description |
 | :--- | :--- |
-| `make build` | Compiles the Go binary to `./arbol` |
-| `make test` | Builds + runs unit tests (`go test`) and integration tests (`tests/test.sh`) |
+| `make build` | Compiles the Go binary to `./arbol` with version embedded |
+| `make build-all` | Cross-compiles for linux/darwin × amd64/arm64 into `dist/` |
+| `make test` | Builds + runs the full Go test suite (`go test -v ./cmd/arbol`) |
 | `make install` | Installs binary to `/usr/local/bin/arbol` and assets to `/usr/local/share/arbol/ascii/` |
-| `make uninstall` | Removes installed binary and assets |
-| `make clean` | Deletes the local `./arbol` binary |
+| `make clean` | Deletes the local `./arbol` binary and `dist/` directory |
+| `make release-snapshot` | Runs goreleaser in snapshot mode (requires goreleaser CLI) |
 
 ## Project Layout
 
 ```
 arbol/
 ├── cmd/arbol/
-│   ├── main.go         # Entry point, flag parsing, gatherInfo(), renderOutput()
-│   ├── sysinfo.go      # Platform-specific metric collectors (CPU, GPU, memory, disk, etc.)
-│   ├── render.go       # Progress bar, ANSI strip, padding helpers
-│   ├── export.go       # Structured export: JSON, XML, TXT + SystemInfo/PluginInfo structs
-│   └── export_test.go  # Unit tests for all export printers
+│   ├── main.go               # Entry point, flag parsing (inc. --version), gatherInfo(), renderOutput()
+│   ├── sysinfo.go            # Platform-specific metric collectors (CPU, GPU, memory, disk, etc.)
+│   ├── sysinfo_linux.go      # getProcesses using syscall.Sysinfo (Linux)
+│   ├── sysinfo_other.go      # getProcesses fallback (non-Linux)
+│   ├── render.go             # Progress bar, ANSI strip/truncate, bar styles
+│   ├── export.go             # Structured export: JSON, XML, TXT + SystemInfo/PluginInfo structs
+│   ├── export_test.go        # Unit tests for all export printers
+│   ├── sysinfo_test.go       # Tests for sysinfo functions
+│   ├── sysinfo_bench_test.go # Benchmarks for getProcesses
+│   └── main_test.go          # Tests for ANSI stripping, bars, etc.
 ├── plugins/
 │   ├── battery.sh      # Battery capacity, status, health bar
 │   ├── docker.sh       # Container counts, image/volume totals, active container list

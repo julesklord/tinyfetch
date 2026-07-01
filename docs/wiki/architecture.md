@@ -37,18 +37,22 @@ Entry point. Parses flags, calls `gatherInfo()`, and calls `renderOutput()`. Con
 Platform-specific metric readers:
 - `getOSName()`, `getDistroID()` — reads `/etc/os-release` or `sw_vers`
 - `getCPU()` — reads `/proc/cpuinfo` or `sysctl`
-- `getGPU()` — reads `lspci` or `system_profiler`
+- `getGPU()` — reads `lspci` or `system_profiler` (with 2s timeout)
 - `getMemory()`, `getSwap()` — reads `/proc/meminfo` or `vm_stat`
-- `getDisk()` — runs `df -Ph /`
+- `getDisk()` — runs `df -Ph /` (with 2s timeout)
 - `getDEWM()`, `getTerminal()` — reads environment variables
-- `getProcesses()` — counts `/proc` numeric directories
 - `getCPUUsage()` — samples `/proc/stat` twice with a 50ms delta to compute utilization
 - `getCPUTemp()` — reads `/sys/class/thermal/thermal_zone*` then `/sys/class/hwmon/hwmon*/temp*_input`
+
+### `cmd/arbol/sysinfo_linux.go` / `cmd/arbol/sysinfo_other.go`
+Platform-split process counter:
+- `getProcesses()` — Linux uses `syscall.Sysinfo` (~1µs); other platforms fall back to `ps -ax | wc -l`
 
 ### `cmd/arbol/render.go`
 Visual layout utilities:
 - `getBar(pct)` — renders a 10-block progress bar: `███░░░░░░░`
-- `stripANSI(s)` — removes ANSI escape sequences
+- `stripANSI(s)` — removes ANSI escape sequences (handles all CSI terminators 0x40-0x7E)
+- `truncateANSI(s, limit)` — truncates to visual width, preserving ANSI codes
 
 ### `cmd/arbol/export.go`
 Structured export printers for `--output`:
