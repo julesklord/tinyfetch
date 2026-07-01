@@ -69,6 +69,10 @@ func parseFlags() (bool, bool, bool, string, string, string, string, string, boo
 			fmt.Println("  Sparkline styles: block, braille, dots")
 			fmt.Println("  --sparkline[=WIDTH] enables inline sparklines (default width: 20)")
 			os.Exit(0)
+		} else {
+			fmt.Fprintf(os.Stderr, "Unknown flag: %s\n", arg)
+			fmt.Printf("Usage: %s [--no-ascii] [--minimal] [--noframe] [--logo=simple|banner] [--output=json|xml|txt]\n", os.Args[0])
+			os.Exit(1)
 		}
 	}
 	return noASCII, minimal, noFrame, outputFmt, logoMode, themeName, barStyleName, treeStyleName, sparklineEnabled, sparklineWidth, sparklineStyleName

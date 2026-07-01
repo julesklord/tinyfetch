@@ -9,7 +9,6 @@ YELLOW="${ESC}[01;33m"
 RED="${ESC}[01;31m"
 BLUE="${ESC}[01;34m"
 RESTORE="${ESC}[0m"
-DIM="${ESC}[2m"
 
 capacity=""
 status=""
