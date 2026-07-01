@@ -4,8 +4,8 @@ This file is the entry point for any AI agent working on this repository.
 
 ## General Instructions
 
-1. **Familiarization**: Before making any changes, read `docs/wiki/index.md`.
-2. **Compliance**: Strictly follow the laws defined in `docs/wiki/agent-sop.md`. No exceptions.
+1. **Familiarization**: Before making any changes, read the [wiki](https://github.com/julesklord/arbol/wiki).
+2. **Compliance**: Strictly follow the laws defined in the [Agent SOP](https://github.com/julesklord/arbol/wiki/Agent-SOP). No exceptions.
 
 ## Agent Initialization Commands
 
