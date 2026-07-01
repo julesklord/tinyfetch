@@ -5,6 +5,21 @@ import (
 	"unicode/utf8"
 )
 
+type BarStyle int
+
+const (
+	BarStyleBlock BarStyle = iota
+	BarStyleBraille
+	BarStyleGradient
+	BarStyleDot
+)
+
+var currentBarStyle = BarStyleBraille
+
+func SetBarStyle(style BarStyle) {
+	currentBarStyle = style
+}
+
 func runeWidth(r rune) int {
 	// Zero-width space, joiners, control chars, variation selectors
 	if r == '\u200d' || r == '\u200c' || (r >= '\ufe00' && r <= '\ufe0f') {
@@ -15,13 +30,17 @@ func runeWidth(r rune) int {
 		return 0
 	}
 	// Wide ranges (2 columns)
-	// Emojis / Pictographs in SMP (Plane 1): U+1F000 to U+1FAFF
+	// Emojis / Pictographs in SMP (Plane 1): U+1F000 to U+ to U+1FAFF
 	if r >= 0x1F000 && r <= 0x1FAFF {
 		return 2
 	}
 	// Miscellaneous Symbols and Pictographs, Emoticons, Ornamental Dingbats, etc. in BMP
 	if r >= 0x2600 && r <= 0x27BF {
 		return 2
+	}
+	// Braille patterns
+	if r >= 0x2800 && r <= 0x28FF {
+		return 1
 	}
 	// CJK ranges
 	if (r >= 0x2E80 && r <= 0x2FDF) || // CJK Radicals
@@ -112,11 +131,10 @@ func getBar(pct int) string {
 	if pct < 0 {
 		pct = 0
 	}
-	filled := pct / 10
-	if filled > 10 {
-		filled = 10
+	if pct > 100 {
+		pct = 100
 	}
-	empty := 10 - filled
+
 	color := "\033[01;32m" // Green
 	if pct > 80 {
 		color = "\033[01;31m" // Red
@@ -126,6 +144,25 @@ func getBar(pct int) string {
 	restore := "\033[0m"
 	gray := "\033[00;37m"
 
+	switch currentBarStyle {
+	case BarStyleBraille:
+		return getBrailleBar(pct, color, gray, restore)
+	case BarStyleGradient:
+		return getGradientBar(pct, restore, gray)
+	case BarStyleDot:
+		return getDotBar(pct, color, gray, restore)
+	default:
+		return getBlockBar(pct, color, gray, restore)
+	}
+}
+
+func getBlockBar(pct int, color, gray, restore string) string {
+	filled := pct / 10
+	if filled > 10 {
+		filled = 10
+	}
+	empty := 10 - filled
+
 	var sb strings.Builder
 	sb.WriteString(color)
 	for i := 0; i < filled; i++ {
@@ -134,6 +171,97 @@ func getBar(pct int) string {
 	sb.WriteString(restore + gray)
 	for i := 0; i < empty; i++ {
 		sb.WriteString("░")
+	}
+	sb.WriteString(restore)
+	return sb.String()
+}
+
+func getBrailleBar(pct int, color, gray, restore string) string {
+	// Braille patterns for 8x resolution (each char = 8 segments)
+	// We use 10 chars = 80 segments for 0-100%
+	braillePatterns := []string{
+		"⠀", // 0/8
+		"⠁", // 1/8
+		"⠃", // 2/8
+		"⠇", // 3/8
+		"⠏", // 4/8
+		"⠟", // 5/8
+		"⠿", // 6/8 (close enough)
+		"⠿", // 7/8
+		"⠿", // 8/8
+	}
+
+	totalSegments := 80 // 10 chars * 8 segments
+	filledSegments := pct * totalSegments / 100
+	fullChars := filledSegments / 8
+	partialSegments := filledSegments % 8
+
+	var sb strings.Builder
+	sb.WriteString(color)
+	for i := 0; i < fullChars; i++ {
+		sb.WriteString("⠿")
+	}
+	if fullChars < 10 {
+		sb.WriteString(braillePatterns[partialSegments])
+		sb.WriteString(restore + gray)
+		for i := fullChars + 1; i < 10; i++ {
+			sb.WriteString("⠀")
+		}
+	} else {
+		sb.WriteString(restore + gray)
+	}
+	sb.WriteString(restore)
+	return sb.String()
+}
+
+func getGradientBar(pct int, restore, gray string) string {
+	// 4-color gradient: green -> yellow -> orange -> red
+	gradientChars := []string{"░", "▒", "▓", "█"}
+	gradientColors := []string{
+		"\033[38;2;0;255;0m",     // Green
+		"\033[38;2;170;255;0m",   // Yellow-green
+		"\033[38;2;255;170;0m",   // Orange
+		"\033[38;2;255;0;0m",     // Red
+	}
+
+	filled := pct / 10
+	if filled > 10 {
+		filled = 10
+	}
+	empty := 10 - filled
+
+	var sb strings.Builder
+	for i := 0; i < filled; i++ {
+		colorIdx := i * 4 / 10
+		if colorIdx > 3 {
+			colorIdx = 3
+		}
+		sb.WriteString(gradientColors[colorIdx])
+		sb.WriteString(gradientChars[3])
+	}
+	sb.WriteString(restore + gray)
+	for i := 0; i < empty; i++ {
+		sb.WriteString(gradientChars[0])
+	}
+	sb.WriteString(restore)
+	return sb.String()
+}
+
+func getDotBar(pct int, color, gray, restore string) string {
+	filled := pct / 10
+	if filled > 10 {
+		filled = 10
+	}
+	empty := 10 - filled
+
+	var sb strings.Builder
+	sb.WriteString(color)
+	for i := 0; i < filled; i++ {
+		sb.WriteString("●")
+	}
+	sb.WriteString(restore + gray)
+	for i := 0; i < empty; i++ {
+		sb.WriteString("○")
 	}
 	sb.WriteString(restore)
 	return sb.String()
