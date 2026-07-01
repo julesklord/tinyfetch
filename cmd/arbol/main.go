@@ -19,12 +19,14 @@ type TreeNode struct {
 	Children []*TreeNode
 }
 
-func parseFlags() (bool, bool, bool, string, string) {
+func parseFlags() (bool, bool, bool, string, string, string, string) {
 	noASCII := false
 	minimal := false
 	noFrame := false
 	outputFmt := ""
 	logoMode := "banner" // default is banner
+	themeName := ""
+	barStyleName := ""
 
 	for _, arg := range os.Args[1:] {
 		if arg == "--no-ascii" {
@@ -37,12 +39,34 @@ func parseFlags() (bool, bool, bool, string, string) {
 			outputFmt = strings.TrimPrefix(arg, "--output=")
 		} else if strings.HasPrefix(arg, "--logo=") {
 			logoMode = strings.TrimPrefix(arg, "--logo=")
+		} else if strings.HasPrefix(arg, "--theme=") {
+			themeName = strings.TrimPrefix(arg, "--theme=")
+		} else if strings.HasPrefix(arg, "--bar-style=") {
+			barStyleName = strings.TrimPrefix(arg, "--bar-style=")
 		} else if arg == "--help" || arg == "-h" {
-			fmt.Printf("Usage: %s [--no-ascii] [--minimal] [--noframe] [--logo=simple|banner] [--output=json|xml|txt]\n", os.Args[0])
+			fmt.Printf("Usage: %s [--no-ascii] [--minimal] [--noframe] [--logo=simple|banner] [--output=json|xml|txt] [--theme=NAME] [--bar-style=STYLE]\n", os.Args[0])
+			fmt.Println("  Themes: default, catppuccin, catppuccin-mocha, catppuccin-latte, dracula, nord, tokyonight, gruvbox, everforest, monokai, rose-pine, solarized")
+			fmt.Println("  Bar styles: block, braille, gradient, dot")
 			os.Exit(0)
 		}
 	}
-	return noASCII, minimal, noFrame, outputFmt, logoMode
+	return noASCII, minimal, noFrame, outputFmt, logoMode, themeName, barStyleName
+}
+
+func parseBarStyle(name string) BarStyle {
+	name = strings.ToLower(name)
+	switch name {
+	case "block":
+		return BarStyleBlock
+	case "braille":
+		return BarStyleBraille
+	case "gradient":
+		return BarStyleGradient
+	case "dot":
+		return BarStyleDot
+	default:
+		return BarStyleBraille
+	}
 }
 
 func gatherInfo(pluginsDir string) SystemInfo {
@@ -348,12 +372,12 @@ func loadASCIILogoBanner() []string {
 func printTree(node *TreeNode, prefixes []string, isLast bool) {
 	if len(prefixes) > 0 {
 		for _, p := range prefixes[:len(prefixes)-1] {
-			fmt.Print("\033[90m" + p + "\033[0m") // Gray branches
+			fmt.Print(GetTheme().TreeLines + p + "\033[0m")
 		}
 		if isLast {
-			fmt.Print("\033[90m└── \033[0m")
+			fmt.Print(GetTheme().TreeLines + "└── \033[0m")
 		} else {
-			fmt.Print("\033[90m├── \033[0m")
+			fmt.Print(GetTheme().TreeLines + "├── \033[0m")
 		}
 	}
 	fmt.Println(node.Text)
@@ -393,6 +417,7 @@ func gradientString(s string, r1, g1, b1, r2, g2, b2 int) string {
 }
 
 func drawBannerLogo(osName string) {
+	theme := GetTheme()
 	osUpper := strings.ToUpper(osName)
 	osUpper = stripANSI(osUpper)
 	content := "  A R B O L  //  " + osUpper + "  "
@@ -402,10 +427,12 @@ func drawBannerLogo(osName string) {
 	mid := "║" + content + "║"
 	bot := "╚" + strings.Repeat("═", width-2) + "╝"
 
-	// Gradient from bright Coral Red (255, 94, 98) to Electric Cyan (0, 242, 254)
-	fmt.Println(gradientString(top, 255, 94, 98, 0, 242, 254))
-	fmt.Println(gradientString(mid, 255, 94, 98, 0, 242, 254))
-	fmt.Println(gradientString(bot, 255, 94, 98, 0, 242, 254))
+	start := theme.BannerGradient[0]
+	end := theme.BannerGradient[1]
+
+	fmt.Println(gradientString(top, start[0], start[1], start[2], end[0], end[1], end[2]))
+	fmt.Println(gradientString(mid, start[0], start[1], start[2], end[0], end[1], end[2]))
+	fmt.Println(gradientString(bot, start[0], start[1], start[2], end[0], end[1], end[2]))
 }
 
 func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj SystemInfo, extPluginsDir, logoMode string) {
@@ -467,12 +494,14 @@ func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj Syst
 		}
 	}
 
+	theme := GetTheme()
+
 	// Styling tokens
 	bold := "\033[1m"
 	italic := "\033[3m"
 	reset := "\033[0m"
-	lblue := "\033[94m"
-	lcyan := "\033[96m"
+	lblue := theme.Secondary
+	lcyan := theme.Primary
 
 	// Render Logo/Banner Header at the top
 	if !noASCII {
@@ -489,7 +518,7 @@ func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj Syst
 			logo := loadASCIILogoBanner()
 			if len(logo) > 0 {
 				for _, line := range logo {
-					fmt.Println(gradientString(line, 255, 94, 98, 0, 242, 254))
+					fmt.Println(gradientString(line, theme.BannerGradient[0][0], theme.BannerGradient[0][1], theme.BannerGradient[0][2], theme.BannerGradient[1][0], theme.BannerGradient[1][1], theme.BannerGradient[1][2]))
 				}
 				fmt.Println()
 			} else {
@@ -501,7 +530,7 @@ func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj Syst
 			logo := loadASCIILogoBanner()
 			if len(logo) > 0 {
 				for _, line := range logo {
-					fmt.Println(gradientString(line, 255, 94, 98, 0, 242, 254))
+					fmt.Println(gradientString(line, theme.BannerGradient[0][0], theme.BannerGradient[0][1], theme.BannerGradient[0][2], theme.BannerGradient[1][0], theme.BannerGradient[1][1], theme.BannerGradient[1][2]))
 				}
 				fmt.Println()
 			} else {
@@ -513,7 +542,7 @@ func renderOutput(noASCII, minimal, noFrame bool, outputFmt string, infoObj Syst
 
 	// Build Tree Root
 	titleText := infoObj.Host + " @ " + infoObj.OSName
-	rootText := bold + lcyan + "● " + reset + bold + gradientString(titleText, 0, 242, 254, 79, 172, 254)
+	rootText := bold + lcyan + "● " + reset + bold + gradientString(titleText, theme.BannerGradient[0][0], theme.BannerGradient[0][1], theme.BannerGradient[0][2], theme.BannerGradient[1][0], theme.BannerGradient[1][1], theme.BannerGradient[1][2])
 
 	root := &TreeNode{
 		Text: rootText,
@@ -641,7 +670,20 @@ func getPluginsDir() string {
 }
 
 func main() {
-	noASCII, minimal, noFrame, outputFmt, logoMode := parseFlags()
+	noASCII, minimal, noFrame, outputFmt, logoMode, themeName, barStyleName := parseFlags()
+
+	if themeName != "" {
+		if !SetTheme(themeName) {
+			fmt.Fprintf(os.Stderr, "Unknown theme: %s\n", themeName)
+			os.Exit(1)
+		}
+	}
+
+	if barStyleName != "" {
+		style := parseBarStyle(barStyleName)
+		SetBarStyle(style)
+	}
+
 	pluginsDir := getPluginsDir()
 	extPluginsDir := filepath.Join(pluginsDir, "extended")
 	infoObj := gatherInfo(pluginsDir)
